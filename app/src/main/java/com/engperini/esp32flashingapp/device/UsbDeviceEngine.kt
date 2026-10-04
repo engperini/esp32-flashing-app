@@ -12,7 +12,7 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  private val prober=UsbSerialProber.getDefaultProber()
  private var port:UsbSerialPort?=null
  private var connection:android.hardware.usb.UsbDeviceConnection?=null
- fun hasDevice()=prober.findAllDrivers(usbManager).isNotEmpty()
+ fun hasDevice()=prober.findAllDrivers(usbManager).isNotEmpty()\n fun isConnected()=port!=null
  fun connect():Boolean{
   val drv=prober.findAllDrivers(usbManager).firstOrNull()?:run{AppState.operation(OperationState.WAITING_DEVICE,"No supported ESP32 USB serial device");return false}
   if(!usbManager.hasPermission(drv.device)){AppState.operation(OperationState.USB_PERMISSION_ERROR,"USB permission required");return false}
