@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
+import android.content.pm.PackageManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.engperini.esp32flashingapp.build.TermuxBuildBackend
@@ -30,6 +32,7 @@ class MainActivity:ComponentActivity(){
  private lateinit var device:UsbDeviceEngine
  private lateinit var projects:ProjectManager
  private lateinit var buildBackend:TermuxBuildBackend
+ private var pendingBuildSource:String?=null
  private val usbPermissionReceiver=object:BroadcastReceiver(){
   override fun onReceive(context:Context,intent:Intent){
    if(intent.action==UsbDeviceEngine.ACTION_USB_PERMISSION) device.onPermissionResult(intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED,false))
@@ -52,9 +55,23 @@ class MainActivity:ComponentActivity(){
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}}){Text("Bootloader")}
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(OperationState.RESET_ERROR,it.message?:"Reset failed")}}}){Text("Reset")}
     }
-    HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={projects.saveMain(source);buildBackend.build(source)}){Text("Build")};Button(onClick={projects.saveMain(source);AppState.operation(OperationState.PREPARING_BUILD,"Build first; automatic flash will follow after successful artifact validation");buildBackend.build(source)}){Text("Build & Flash")}};HorizontalDivider();Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Serial Monitor • 115200 • RX ${state.rxBytes} bytes");TextButton(onClick={AppState.clearSerial()}){Text("Clear")}};Surface(Modifier.fillMaxWidth().height(280.dp),tonalElevation=2.dp){Text(if(state.serialText.isEmpty())"Waiting for serial data…" else state.serialText,Modifier.padding(10.dp).verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)}
+    HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={startBuild(source)}){Text("Build")};Button(onClick={AppState.operation(OperationState.PREPARING_BUILD,"Build first; automatic flash will follow after successful artifact validation");startBuild(source)}){Text("Build & Flash")}};HorizontalDivider();Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Serial Monitor • 115200 • RX ${state.rxBytes} bytes");TextButton(onClick={AppState.clearSerial()}){Text("Clear")}};Surface(Modifier.fillMaxWidth().height(280.dp),tonalElevation=2.dp){Text(if(state.serialText.isEmpty())"Waiting for serial data…" else state.serialText,Modifier.padding(10.dp).verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)}
    }}
   }}
+ }
+
+ override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){
+  super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+  if(requestCode==2001){
+   val src=pendingBuildSource; pendingBuildSource=null
+   if(grantResults.firstOrNull()==PackageManager.PERMISSION_GRANTED && src!=null) buildBackend.build(src)
+   else AppState.operation(OperationState.BUILD_ERROR,"Termux RUN_COMMAND permission denied")
+  }
+ }
+ private fun startBuild(source:String){
+  projects.saveMain(source)
+  if(ContextCompat.checkSelfPermission(this,"com.termux.permission.RUN_COMMAND")==PackageManager.PERMISSION_GRANTED) buildBackend.build(source)
+  else { pendingBuildSource=source; ActivityCompat.requestPermissions(this,arrayOf("com.termux.permission.RUN_COMMAND"),2001) }
  }
  override fun onDestroy(){runCatching{unregisterReceiver(usbPermissionReceiver)};device.disconnect();super.onDestroy()}
 }
