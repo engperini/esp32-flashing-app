@@ -72,7 +72,9 @@ class IdfBuildExecutor(private val context: Context) {
             val target = File(nativeDir, lib)
             require(target.exists()) { "Embedded runtime file missing: $lib" }
             val dest = File(binDir, name)
-            if (!dest.exists()) Os.symlink(target.absolutePath, dest.absolutePath)
+            // APK updates move nativeLibraryDir. Always refresh these tiny launcher links.
+            runCatching { Os.unlink(dest.absolutePath) }
+            Os.symlink(target.absolutePath, dest.absolutePath)
         }
         return File(nativeDir, "libpr-cli.so")
     }
