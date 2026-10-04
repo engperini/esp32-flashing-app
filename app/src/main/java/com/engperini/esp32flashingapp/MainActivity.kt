@@ -24,6 +24,7 @@ import com.engperini.esp32flashingapp.core.OperationState
 import com.engperini.esp32flashingapp.device.UsbDeviceEngine
 import com.engperini.esp32flashingapp.project.ProjectManager
 import com.engperini.esp32flashingapp.flash.EspRomTransport
+import com.engperini.esp32flashingapp.flash.FlashState
 import com.engperini.esp32flashingapp.runtime.IdfBuildExecutor
 import com.engperini.esp32flashingapp.runtime.SetupState
 import com.engperini.esp32flashingapp.runtime.BuildState
@@ -46,8 +47,10 @@ class MainActivity:ComponentActivity(){
    val state by AppState.state.collectAsStateWithLifecycle()
    val setup by SetupState.state.collectAsStateWithLifecycle()
    val build by BuildState.state.collectAsStateWithLifecycle()
+   val flash by FlashState.state.collectAsStateWithLifecycle()
    if(setup.visible){ AlertDialog(onDismissRequest={},confirmButton={if(setup.current.completed||setup.error!=null) TextButton(onClick={SetupState.close()}){Text("Close")}},title={Text("ESP-IDF Setup")},text={Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(10.dp)){Text(setup.current.step.label,style=MaterialTheme.typography.titleMedium);Text(setup.current.status);if(setup.current.fraction!=null) LinearProgressIndicator(progress={setup.current.fraction!!},modifier=Modifier.fillMaxWidth()) else LinearProgressIndicator(modifier=Modifier.fillMaxWidth());setup.error?.let{Text("Error: $it")};Surface(Modifier.fillMaxWidth().height(260.dp),tonalElevation=2.dp){Text(if(setup.current.log.isBlank())"Waiting for installer output…" else setup.current.log,Modifier.padding(8.dp).verticalScroll(rememberScrollState()),fontFamily=FontFamily.Monospace,style=MaterialTheme.typography.bodySmall)}}}) }
    if(build.visible){ AlertDialog(onDismissRequest={},confirmButton={if(build.completed||build.error!=null) TextButton(onClick={BuildState.close()}){Text("Close")}},title={Text("ESP-IDF Build")},text={Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(10.dp)){Text(build.status,style=MaterialTheme.typography.titleMedium);if(!build.completed&&build.error==null) LinearProgressIndicator(modifier=Modifier.fillMaxWidth());build.error?.let{Text("Error: $it")};Surface(Modifier.fillMaxWidth().height(300.dp),tonalElevation=2.dp){Text(if(build.log.isBlank())"Waiting for compiler output…" else build.log,Modifier.padding(8.dp).verticalScroll(rememberScrollState()),fontFamily=FontFamily.Monospace,style=MaterialTheme.typography.bodySmall)}}}) }
+   if(flash.visible){ AlertDialog(onDismissRequest={},confirmButton={if(flash.completed||flash.error!=null) TextButton(onClick={FlashState.close()}){Text("Close")}},title={Text("ESP32 Flash")},text={Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(10.dp)){Text(flash.status,style=MaterialTheme.typography.titleMedium);if(!flash.completed&&flash.error==null) LinearProgressIndicator(modifier=Modifier.fillMaxWidth());flash.error?.let{Text("Error: $it")};Surface(Modifier.fillMaxWidth().height(240.dp),tonalElevation=2.dp){Text(if(flash.log.isBlank())"Waiting…" else flash.log,Modifier.padding(8.dp).verticalScroll(rememberScrollState()),fontFamily=FontFamily.Monospace,style=MaterialTheme.typography.bodySmall)}}}) }
    var source by remember { mutableStateOf(projects.loadMain()) }
    Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium)
@@ -121,18 +124,23 @@ class MainActivity:ComponentActivity(){
    runCatching {
     IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
     BuildState.close()
+    FlashState.open()
+    FlashState.status("Build completed. Taking exclusive USB ownership…")
     device.acquireTransport()
     try {
+     FlashState.status("Entering ESP32-S3 ROM bootloader…")
      device.enterBootloader()
+     FlashState.status("Synchronizing at 115200 baud…")
      AppState.operation(OperationState.BOOTLOADER_READY,"Synchronizing with ESP32-S3 ROM…")
      check(EspRomTransport(device).sync()){"ESP32-S3 ROM did not answer SYNC"}
+     FlashState.success("ESP32-S3 ROM SYNC successful — transport ready")
      AppState.operation(OperationState.BOOTLOADER_READY,"ESP32-S3 ROM SYNC successful — flash transport ready")
     } finally {
      device.releaseTransport()
     }
    }.onFailure {
     val message=it.message?:"Build & Flash preparation failed"
-    BuildState.error(message)
+    if(FlashState.state.value.visible) FlashState.error(message) else BuildState.error(message)
     AppState.operation(OperationState.BUILD_ERROR,"Build & Flash stopped — see details")
    }
   }
