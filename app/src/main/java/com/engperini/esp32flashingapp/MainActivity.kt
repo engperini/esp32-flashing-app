@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.core.app.ActivityCompat
 import android.content.pm.PackageManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -32,7 +31,6 @@ class MainActivity:ComponentActivity(){
  private lateinit var device:UsbDeviceEngine
  private lateinit var projects:ProjectManager
  private lateinit var buildBackend:TermuxBuildBackend
- private var pendingBuildSource:String?=null
  private val usbPermissionReceiver=object:BroadcastReceiver(){
   override fun onReceive(context:Context,intent:Intent){
    if(intent.action==UsbDeviceEngine.ACTION_USB_PERMISSION) device.onPermissionResult(intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED,false))
@@ -60,18 +58,14 @@ class MainActivity:ComponentActivity(){
   }}
  }
 
- override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<String>,grantResults:IntArray){
-  super.onRequestPermissionsResult(requestCode,permissions,grantResults)
-  if(requestCode==2001){
-   val src=pendingBuildSource; pendingBuildSource=null
-   if(grantResults.firstOrNull()==PackageManager.PERMISSION_GRANTED && src!=null) buildBackend.build(src)
-   else AppState.operation(OperationState.BUILD_ERROR,"Termux RUN_COMMAND permission denied")
-  }
- }
  private fun startBuild(source:String){
   projects.saveMain(source)
-  if(ContextCompat.checkSelfPermission(this,"com.termux.permission.RUN_COMMAND")==PackageManager.PERMISSION_GRANTED) buildBackend.build(source)
-  else { pendingBuildSource=source; ActivityCompat.requestPermissions(this,arrayOf("com.termux.permission.RUN_COMMAND"),2001) }
+  if(ContextCompat.checkSelfPermission(this,"com.termux.permission.RUN_COMMAND")!=PackageManager.PERMISSION_GRANTED){
+   AppState.operation(OperationState.BUILD_ERROR,"Grant 'Run commands in Termux environment' in App info > Permissions > Additional permissions, then return and tap Build.")
+   runCatching{startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+packageName)))}
+   return
+  }
+  buildBackend.build(source)
  }
  override fun onDestroy(){runCatching{unregisterReceiver(usbPermissionReceiver)};device.disconnect();super.onDestroy()}
 }
