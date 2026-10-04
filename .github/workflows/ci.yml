@@ -74,3 +74,33 @@ jobs:
             test-firmware/build/esp32-flashing-test.bin
             test-firmware/build/flash_args
           if-no-files-found: error
+
+  runtime-engine:
+    name: App-managed Linux runtime engine proof
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Fetch maintained Android proot-engine
+        run: git clone --depth 1 https://github.com/oonid/pr.git /tmp/pr
+      - name: Build proot-engine AAR
+        working-directory: /tmp/pr/android
+        run: |
+          chmod +x gradlew
+          ./gradlew :proot-engine:assembleDebug
+          test -f proot-engine/build/outputs/aar/proot-engine-debug.aar
+      - name: Verify arm64 runtime payload
+        run: |
+          unzip -l /tmp/pr/android/proot-engine/build/outputs/aar/proot-engine-debug.aar | tee /tmp/aar.txt
+          grep -q "jni/arm64-v8a/libproot.so" /tmp/aar.txt
+          grep -q "jni/arm64-v8a/libproot-loader.so" /tmp/aar.txt
+          grep -q "jni/arm64-v8a/libpr-cli.so" /tmp/aar.txt
+          grep -q "jni/arm64-v8a/libbusybox.so" /tmp/aar.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proot-engine-arm64-proof
+          path: /tmp/pr/android/proot-engine/build/outputs/aar/proot-engine-debug.aar
+          if-no-files-found: error
