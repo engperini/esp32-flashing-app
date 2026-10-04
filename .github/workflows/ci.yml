@@ -36,6 +36,14 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
+      - name: Build app-managed runtime engine
+        run: |
+          git clone --depth 1 https://github.com/oonid/pr.git /tmp/pr
+          cd /tmp/pr/android
+          chmod +x gradlew
+          ./gradlew :proot-engine:assembleDebug
+          mkdir -p "$GITHUB_WORKSPACE/app/libs"
+          cp proot-engine/build/outputs/aar/proot-engine-debug.aar "$GITHUB_WORKSPACE/app/libs/"
       - name: Unit tests
         run: gradle testDebugUnitTest
       - name: Build debug APK
