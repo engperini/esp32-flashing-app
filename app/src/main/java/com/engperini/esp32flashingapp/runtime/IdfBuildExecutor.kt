@@ -50,9 +50,10 @@ class IdfBuildExecutor(private val context: Context) {
         log.toString()
     }
 
-    suspend fun build(project: File, target: String): String = withContext(Dispatchers.IO) {
+    suspend fun buildPrepared(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
         require(project.isDirectory) { "Project directory not found: $project" }
-        prepare(target)
+        val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
+        IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: ${it.name}" } }
         val launcher = ProotLauncher(host)
         val cli = prepareLauncher()
         val guestProject = project.absolutePath
@@ -60,7 +61,7 @@ class IdfBuildExecutor(private val context: Context) {
         val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' && " +
             ". '${IdfRuntimePlan.IDF_PATH}/export.sh' >/dev/null && " +
             "cd '$guestProject' && idf.py set-target '$target' && idf.py build && echo $success"
-        executeStage(launcher, cli, command, success)
+        executeStage(launcher, cli, command, success, onOutput, "Build")
     }
 
     private fun prepareLauncher(): File {
@@ -76,7 +77,7 @@ class IdfBuildExecutor(private val context: Context) {
         return File(nativeDir, "libpr-cli.so")
     }
 
-    private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String, onOutput: (String) -> Unit = {}): String {
+    private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String, onOutput: (String) -> Unit = {}, operation: String = "Provisioning stage"): String {
         val session = launcher.startCustomSession(
             listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", command)
         ) ?: error("Unable to start provisioning stage")
@@ -92,7 +93,7 @@ class IdfBuildExecutor(private val context: Context) {
         } finally {
             session.close()
         }
-        require(output.contains(success)) { "Provisioning stage failed before $success: ${output.takeLast(4000)}" }
+        require(output.contains(success)) { "$operation failed before $success: ${output.takeLast(4000)}" }
         return output.toString()
     }
 
