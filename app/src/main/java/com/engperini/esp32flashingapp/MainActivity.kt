@@ -25,6 +25,7 @@ import com.engperini.esp32flashingapp.device.UsbDeviceEngine
 import com.engperini.esp32flashingapp.project.ProjectManager
 import com.engperini.esp32flashingapp.flash.EspRomTransport
 import com.engperini.esp32flashingapp.flash.FlashState
+import com.engperini.esp32flashingapp.flash.FlashPlanLoader
 import com.engperini.esp32flashingapp.runtime.IdfBuildExecutor
 import com.engperini.esp32flashingapp.runtime.SetupState
 import com.engperini.esp32flashingapp.runtime.BuildState
@@ -125,7 +126,9 @@ class MainActivity:ComponentActivity(){
     IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
     BuildState.close()
     FlashState.open()
-    FlashState.status("Build completed. Taking exclusive USB ownership…")
+    val plan=FlashPlanLoader.load(projects.projectDir)
+    FlashState.status("Build completed. Validated ${plan.images.size} flash images at ${plan.baudRate} baud.")
+    FlashState.status("Taking exclusive USB ownership…")
     device.acquireTransport()
     try {
      FlashState.status("Entering ESP32-S3 ROM bootloader…")
