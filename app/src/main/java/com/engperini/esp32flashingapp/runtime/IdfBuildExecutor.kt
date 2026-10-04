@@ -50,6 +50,25 @@ class IdfBuildExecutor(private val context: Context) {
         log.toString()
     }
 
+    suspend fun doctor(target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
+        require(target.matches(Regex("[a-z0-9]+"))) { "Invalid ESP target" }
+        val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
+        require(File(rootfs, "etc/os-release").exists()) { "Debian runtime is not installed" }
+        val launcher = ProotLauncher(host)
+        val cli = prepareLauncher()
+        val success = "__APP_IDF_DOCTOR_OK__"
+        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' && " +
+            ". '${IdfRuntimePlan.IDF_PATH}/export.sh' && " +
+            "echo '--- ESP-IDF ---' && idf.py --version && " +
+            "echo '--- Python ---' && python3 --version && " +
+            "echo '--- CMake ---' && cmake --version | head -n 1 && " +
+            "echo '--- Ninja ---' && ninja --version && " +
+            "echo '--- Target toolchain ---' && " +
+            "case '$target' in esp32s3) xtensa-esp32s3-elf-gcc --version | head -n 1 ;; *) echo 'Target toolchain check not defined: $target'; exit 2 ;; esac && " +
+            "echo $success"
+        executeStage(launcher, cli, command, success, onOutput, "ESP-IDF Doctor")
+    }
+
     suspend fun buildPrepared(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
         require(project.isDirectory) { "Project directory not found: $project" }
         val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
