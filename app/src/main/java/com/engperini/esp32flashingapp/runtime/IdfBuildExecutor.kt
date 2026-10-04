@@ -42,7 +42,7 @@ class IdfBuildExecutor(private val context: Context) {
         prepare(target)
         val launcher = ProotLauncher(host)
         val cli = prepareLauncher()
-        val guestProject = "/data/data/${context.packageName}/files/projects/example"
+        val guestProject = project.absolutePath
         val success = "__APP_IDF_BUILD_OK__"
         val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' && " +
             ". '${IdfRuntimePlan.IDF_PATH}/export.sh' >/dev/null && " +
