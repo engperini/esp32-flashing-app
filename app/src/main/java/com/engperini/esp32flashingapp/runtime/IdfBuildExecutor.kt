@@ -27,7 +27,8 @@ class IdfBuildExecutor(private val context: Context) {
                 log.appendLine("${stage.name}: ready")
             } else {
                 val markerDir = File(rootfs, "opt/esp/.app-state").apply { mkdirs() }
-                val output = executeStage(launcher, cli, stage.command)
+                val success = "__APP_STAGE_${stage.name.uppercase()}_OK__"
+                val output = executeStage(launcher, cli, stage.command + " && echo " + success, success)
                 File(markerDir, stage.marker).writeText("ok")
                 log.appendLine("${stage.name}: completed")
                 log.appendLine(output.takeLast(2000))
@@ -49,7 +50,7 @@ class IdfBuildExecutor(private val context: Context) {
         return File(nativeDir, "libpr-cli.so")
     }
 
-    private fun executeStage(launcher: ProotLauncher, cli: File, command: String): String {
+    private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String): String {
         val session = launcher.startCustomSession(
             listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", command)
         ) ?: error("Unable to start provisioning stage")
@@ -64,6 +65,7 @@ class IdfBuildExecutor(private val context: Context) {
         } finally {
             session.close()
         }
+        require(output.contains(success)) { "Provisioning stage failed before $success: ${output.takeLast(4000)}" }
         return output.toString()
     }
 }
