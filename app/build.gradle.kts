@@ -1,7 +1,11 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id("org.jetbrains.kotlin.plugin.compose") }
 android {
  namespace = "com.engperini.esp32flashingapp"; compileSdk = 34
- defaultConfig { applicationId = "com.engperini.esp32flashingapp"; minSdk = 28; targetSdk = 34; versionCode = 1; versionName = "0.1.0" }
+ defaultConfig {
+  applicationId = "com.engperini.esp32flashingapp"; minSdk = 28; targetSdk = 34
+  versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
+  versionName = "0.1.0-dev."+ versionCode
+ }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }; buildFeatures { compose = true }
  packaging { jniLibs { useLegacyPackaging = true } }
