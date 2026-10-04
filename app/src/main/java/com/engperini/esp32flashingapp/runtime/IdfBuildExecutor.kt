@@ -78,8 +78,8 @@ class IdfBuildExecutor(private val context: Context) {
         val guestProject = project.absolutePath
         val success = "__APP_IDF_BUILD_OK__"
         val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' && " +
-            "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh && " +
-            "cd '$guestProject' && idf.py set-target '$target' && idf.py build && echo $success"
+            "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh >/dev/null && " +
+            "cd '$guestProject' && idf.py set-target '$target' >/dev/null && idf.py build && echo $success"
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
 
@@ -114,7 +114,14 @@ class IdfBuildExecutor(private val context: Context) {
         } finally {
             session.close()
         }
-        require(output.contains(success)) { "$operation failed before $success: ${output.takeLast(4000)}" }
+        if (!output.contains(success)) {
+            val lines = output.lines()
+            val diagnostic = lines.filter { line ->
+                val s = line.lowercase()
+                s.contains("error:") || s.contains("fatal:") || s.contains("failed:") || s.startsWith("failed") || s.contains("ninja:")
+            }.takeLast(40).joinToString("\n").ifBlank { output.takeLast(4000) }
+            error("$operation failed:\n$diagnostic")
+        }
         return output.toString()
     }
 
