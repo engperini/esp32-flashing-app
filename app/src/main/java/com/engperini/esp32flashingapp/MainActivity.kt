@@ -25,6 +25,7 @@ import com.engperini.esp32flashingapp.device.UsbDeviceEngine
 import com.engperini.esp32flashingapp.project.ProjectManager
 import com.engperini.esp32flashingapp.runtime.IdfBuildExecutor
 import com.engperini.esp32flashingapp.runtime.SetupState
+import com.engperini.esp32flashingapp.runtime.BuildState
 import kotlinx.coroutines.launch
 
 class MainActivity:ComponentActivity(){
@@ -43,7 +44,9 @@ class MainActivity:ComponentActivity(){
   setContent{MaterialTheme{
    val state by AppState.state.collectAsStateWithLifecycle()
    val setup by SetupState.state.collectAsStateWithLifecycle()
+   val build by BuildState.state.collectAsStateWithLifecycle()
    if(setup.visible){ AlertDialog(onDismissRequest={},confirmButton={if(setup.current.completed||setup.error!=null) TextButton(onClick={SetupState.close()}){Text("Close")}},title={Text("ESP-IDF Setup")},text={Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(10.dp)){Text(setup.current.step.label,style=MaterialTheme.typography.titleMedium);Text(setup.current.status);if(setup.current.fraction!=null) LinearProgressIndicator(progress={setup.current.fraction!!},modifier=Modifier.fillMaxWidth()) else LinearProgressIndicator(modifier=Modifier.fillMaxWidth());setup.error?.let{Text("Error: $it")};Surface(Modifier.fillMaxWidth().height(260.dp),tonalElevation=2.dp){Text(if(setup.current.log.isBlank())"Waiting for installer output…" else setup.current.log,Modifier.padding(8.dp).verticalScroll(rememberScrollState()),fontFamily=FontFamily.Monospace,style=MaterialTheme.typography.bodySmall)}}}) }
+   if(build.visible){ AlertDialog(onDismissRequest={},confirmButton={if(build.completed||build.error!=null) TextButton(onClick={BuildState.close()}){Text("Close")}},title={Text("ESP-IDF Build")},text={Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(10.dp)){Text(build.status,style=MaterialTheme.typography.titleMedium);if(!build.completed&&build.error==null) LinearProgressIndicator(modifier=Modifier.fillMaxWidth());build.error?.let{Text("Error: $it")};Surface(Modifier.fillMaxWidth().height(300.dp),tonalElevation=2.dp){Text(if(build.log.isBlank())"Waiting for compiler output…" else build.log,Modifier.padding(8.dp).verticalScroll(rememberScrollState()),fontFamily=FontFamily.Monospace,style=MaterialTheme.typography.bodySmall)}}}) }
    var source by remember { mutableStateOf(projects.loadMain()) }
    Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium)
@@ -67,13 +70,16 @@ class MainActivity:ComponentActivity(){
     val executor=IdfBuildExecutor(applicationContext)
     executor.prepare("esp32s3"){SetupState.progress(it)}
     SetupState.close()
+    BuildState.open()
     AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware…")
-    executor.build(projects.projectDir,"esp32s3")
+    executor.buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
    }.onSuccess { output ->
+    BuildState.success(output)
     AppState.operation(OperationState.BUILD_SUCCESS,output.takeLast(3500))
    }.onFailure {
-    SetupState.error(it.message?:"Setup/build failed")
-    AppState.operation(OperationState.BUILD_ERROR,it.message?:"Build failed")
+    val message=it.message?:"Build failed"
+    if(BuildState.state.value.visible) BuildState.error(message) else SetupState.error(message)
+    AppState.operation(OperationState.BUILD_ERROR,message)
    }
   }
  }
