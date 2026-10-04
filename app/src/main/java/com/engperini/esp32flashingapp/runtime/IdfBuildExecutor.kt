@@ -59,7 +59,7 @@ class IdfBuildExecutor(private val context: Context) {
         val guestProject = project.absolutePath
         val success = "__APP_IDF_BUILD_OK__"
         val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' && " +
-            ". '${IdfRuntimePlan.IDF_PATH}/export.sh' >/dev/null && " +
+            ". '${IdfRuntimePlan.IDF_PATH}/export.sh' && " +
             "cd '$guestProject' && idf.py set-target '$target' && idf.py build && echo $success"
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
@@ -79,8 +79,8 @@ class IdfBuildExecutor(private val context: Context) {
 
     private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String, onOutput: (String) -> Unit = {}, operation: String = "Provisioning stage"): String {
         val session = launcher.startCustomSession(
-            listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", command)
-        ) ?: error("Unable to start provisioning stage")
+            listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", "/bin/sh", "-lc", command)
+        ) ?: error("Unable to start $operation")
         val output = StringBuilder()
         val buffer = ByteArray(8192)
         try {
