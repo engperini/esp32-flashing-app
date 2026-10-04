@@ -4,27 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class EnvironmentPlannerTest {
-    @Test fun cleanAndroidRequiresProvisioning() {
-        assertFalse(EnvironmentPlanner.isReady(emptyList()))
-        assertEquals(EnvironmentPlanner.required, EnvironmentPlanner.missing(emptyList()))
+    @Test fun cleanAndroidRequiresCommonRuntimeAndSelectedTargetToolchain() {
+        val required = EnvironmentPlanner.requiredFor("esp32s3")
+        assertFalse(EnvironmentPlanner.isReady(emptyList(), "esp32s3"))
+        assertEquals(required, EnvironmentPlanner.missing(emptyList(), "esp32s3"))
+        assertEquals(EnvironmentComponent.TOOLCHAIN, required.last())
     }
 
-    @Test fun fullyPreparedEnvironmentIsReady() {
-        val checks = EnvironmentPlanner.required.map { EnvironmentCheck(it, true) }
-        assertTrue(EnvironmentPlanner.isReady(checks))
-        assertTrue(EnvironmentPlanner.missing(checks).isEmpty())
+    @Test fun commonRuntimeDoesNotPretendSelectedTargetIsReady() {
+        val commonReady = EnvironmentPlanner.commonRequired.map { EnvironmentCheck(it, true) }
+        assertFalse(EnvironmentPlanner.isReady(commonReady, "esp32s3"))
+        assertEquals(listOf(EnvironmentComponent.TOOLCHAIN),
+            EnvironmentPlanner.missing(commonReady, "esp32s3"))
     }
 
-    @Test fun reportsOnlyMissingComponents() {
-        val checks = listOf(
-            EnvironmentCheck(EnvironmentComponent.STORAGE, true),
-            EnvironmentCheck(EnvironmentComponent.TOOLCHAIN, true),
-            EnvironmentCheck(EnvironmentComponent.ESP_IDF, false)
-        )
-        val missing = EnvironmentPlanner.missing(checks)
-        assertFalse(EnvironmentComponent.STORAGE in missing)
-        assertFalse(EnvironmentComponent.TOOLCHAIN in missing)
-        assertTrue(EnvironmentComponent.ESP_IDF in missing)
-        assertTrue(EnvironmentComponent.PYTHON in missing)
+    @Test fun selectedTargetBecomesReadyAfterItsToolchainIsPresent() {
+        val checks = EnvironmentPlanner.requiredFor("esp32s3").map { EnvironmentCheck(it, true) }
+        assertTrue(EnvironmentPlanner.isReady(checks, "esp32s3"))
+        assertTrue(EnvironmentPlanner.missing(checks, "esp32s3").isEmpty())
     }
 }
