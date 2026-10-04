@@ -87,7 +87,7 @@ class IdfBuildExecutor(private val context: Context) {
                 val count = session.read(buffer)
                 if (count <= 0) break
                 output.append(String(buffer, 0, count))
-                onOutput(output.takeLast(6000))
+                onOutput(output.toString().takeLast(6000))
             }
         } finally {
             session.close()
@@ -105,7 +105,7 @@ class IdfBuildExecutor(private val context: Context) {
                 val count = session.read(buffer)
                 if (count <= 0) break
                 output.append(String(buffer, 0, count))
-                onOutput(output.takeLast(6000))
+                onOutput(output.toString().takeLast(6000))
             }
         } finally { session.close() }
         return output.toString()
