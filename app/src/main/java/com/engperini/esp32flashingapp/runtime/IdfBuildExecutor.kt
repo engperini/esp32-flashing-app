@@ -37,6 +37,19 @@ class IdfBuildExecutor(private val context: Context) {
         log.toString()
     }
 
+    suspend fun build(project: File, target: String): String = withContext(Dispatchers.IO) {
+        require(project.isDirectory) { "Project directory not found: $project" }
+        prepare(target)
+        val launcher = ProotLauncher(host)
+        val cli = prepareLauncher()
+        val guestProject = "/data/data/${context.packageName}/files/projects/example"
+        val success = "__APP_IDF_BUILD_OK__"
+        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' && " +
+            ". '${IdfRuntimePlan.IDF_PATH}/export.sh' >/dev/null && " +
+            "cd '$guestProject' && idf.py set-target '$target' && idf.py build && echo $success"
+        executeStage(launcher, cli, command, success)
+    }
+
     private fun prepareLauncher(): File {
         host.prefixDir.mkdirs(); host.homeDir.mkdirs()
         val nativeDir = File(context.applicationInfo.nativeLibraryDir)
