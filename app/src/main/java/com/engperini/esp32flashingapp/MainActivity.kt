@@ -26,6 +26,7 @@ import com.engperini.esp32flashingapp.project.ProjectManager
 import com.engperini.esp32flashingapp.runtime.IdfBuildExecutor
 import com.engperini.esp32flashingapp.runtime.SetupState
 import com.engperini.esp32flashingapp.runtime.BuildState
+import com.engperini.esp32flashingapp.runtime.IdfDoctor
 import kotlinx.coroutines.launch
 
 class MainActivity:ComponentActivity(){
@@ -56,7 +57,7 @@ class MainActivity:ComponentActivity(){
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}}){Text("Bootloader")}
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(OperationState.RESET_ERROR,it.message?:"Reset failed")}}}){Text("Reset")}
     }
-    HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={configureIdf()}){Text("Configure ESP-IDF")}}
+    HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={configureIdf()}){Text("Configure ESP-IDF")};OutlinedButton(onClick={AppState.operation(OperationState.IDLE,IdfDoctor.inspect(applicationContext,"esp32s3").text())}){Text("Doctor")}}
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={startBuild(source)}){Text("Build")};Button(onClick={AppState.operation(OperationState.PREPARING_BUILD,"Build first; automatic flash will follow after successful artifact validation");startBuild(source)}){Text("Build & Flash")}};HorizontalDivider();Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Serial Monitor • 115200 • RX ${state.rxBytes} bytes");TextButton(onClick={AppState.clearSerial()}){Text("Clear")}};Surface(Modifier.fillMaxWidth().height(280.dp),tonalElevation=2.dp){Text(if(state.serialText.isEmpty())"Waiting for serial data…" else state.serialText,Modifier.padding(10.dp).verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)}
    }}
   }}
