@@ -34,23 +34,30 @@ class LinuxRuntimeProbe(private val context: Context) {
 
         val launcher = ProotLauncher(host)
         val version = capture(launcher, listOf(proot.absolutePath, "--version"), "PRoot")
-        val rootfs = File(host.prefixDir, "var/lib/pr/containers/alpine/rootfs")
+        val alias = "idf-base"
+        val rootfs = File(host.prefixDir, "var/lib/pr/containers/$alias/rootfs")
         val osRelease = File(rootfs, "etc/os-release")
         val installOutput = if (!osRelease.exists()) {
             val installLog = captureUntilExit(
                 launcher,
-                listOf(cli.absolutePath, "install", "docker.io/library/alpine:3.21", "--override-alias", "alpine")
+                listOf(cli.absolutePath, "install", "docker.io/library/debian:bookworm-slim", "--override-alias", alias)
             )
-            require(osRelease.exists()) { "OCI install ended without a usable Alpine rootfs: $installLog" }
-            "Alpine ARM64 rootfs provisioned"
-        } else "Alpine rootfs already provisioned"
+            require(osRelease.exists()) { "OCI install ended without a usable Debian rootfs: $installLog" }
+            "Debian ARM64/glibc rootfs provisioned"
+        } else "Debian ARM64/glibc rootfs already provisioned"
 
         val guest = capture(
             launcher,
-            listOf(cli.absolutePath, "login", "alpine", "--",
-                "cat", "/etc/os-release", ";", "uname", "-m", ";", "echo", "__APP_LINUX_GUEST_OK__"),
-            "__APP_LINUX_GUEST_OK__"
+            listOf(cli.absolutePath, "login", alias, "--",
+                "cat", "/etc/os-release", ";", "uname", "-m", ";", "ldd", "--version", ";",
+                "echo", "__APP_GLIBC_GUEST_OK__"),
+            "__APP_GLIBC_GUEST_OK__"
         )
+        require(guest.contains("ID=debian")) { "Guest is not Debian: $guest" }
+        require(guest.contains("aarch64")) { "Guest is not ARM64: $guest" }
+        require(guest.contains("GLIBC", ignoreCase = true) || guest.contains("GNU libc", ignoreCase = true)) {
+            "glibc was not identified: $guest"
+        }
         version.trim() + "\n" + installOutput.trim() + "\n" + guest.trim()
     }
 
