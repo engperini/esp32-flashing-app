@@ -17,21 +17,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import android.content.pm.PackageManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import com.engperini.esp32flashingapp.build.TermuxBuildBackend
 import com.engperini.esp32flashingapp.core.AppState
 import com.engperini.esp32flashingapp.core.OperationState
 import com.engperini.esp32flashingapp.device.UsbDeviceEngine
 import com.engperini.esp32flashingapp.project.ProjectManager
-import com.engperini.esp32flashingapp.runtime.LinuxRuntimeProbe
+import com.engperini.esp32flashingapp.runtime.IdfBuildExecutor
 import kotlinx.coroutines.launch
 
 class MainActivity:ComponentActivity(){
  private lateinit var device:UsbDeviceEngine
  private lateinit var projects:ProjectManager
- private lateinit var buildBackend:TermuxBuildBackend
  private val usbPermissionReceiver=object:BroadcastReceiver(){
   override fun onReceive(context:Context,intent:Intent){
    if(intent.action==UsbDeviceEngine.ACTION_USB_PERMISSION) device.onPermissionResult(intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED,false))
@@ -41,7 +38,6 @@ class MainActivity:ComponentActivity(){
   super.onCreate(savedInstanceState)
   device=UsbDeviceEngine(applicationContext)
   projects=ProjectManager(applicationContext);projects.ensureExampleProject()
-  buildBackend=TermuxBuildBackend(applicationContext)
   ContextCompat.registerReceiver(this,usbPermissionReceiver,IntentFilter(UsbDeviceEngine.ACTION_USB_PERMISSION),ContextCompat.RECEIVER_NOT_EXPORTED)
   setContent{MaterialTheme{
    val state by AppState.state.collectAsStateWithLifecycle()
@@ -49,7 +45,7 @@ class MainActivity:ComponentActivity(){
    Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium)
     Text(state.deviceLabel);Text("ESP-IDF 5.5 • Target: esp32s3");Text("State: "+state.operation.name);Text(state.detail)
-    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={device.connect()}){Text("Connect USB")};OutlinedButton(onClick={device.disconnect()}){Text("Disconnect")};OutlinedButton(onClick={lifecycleScope.launch{runCatching{LinuxRuntimeProbe(applicationContext).probe()}.onSuccess{AppState.operation(OperationState.IDLE,it)}.onFailure{AppState.operation(OperationState.BUILD_ERROR,"Runtime probe: "+(it.message?:"failed"))}}}){Text("Test Linux")}}
+    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={device.connect()}){Text("Connect USB")};OutlinedButton(onClick={device.disconnect()}){Text("Disconnect")};OutlinedButton(onClick={lifecycleScope.launch{AppState.operation(OperationState.PREPARING_BUILD,"Preparing ESP-IDF 5.5 for ESP32-S3…");runCatching{IdfBuildExecutor(applicationContext).prepare("esp32s3")}.onSuccess{AppState.operation(OperationState.IDLE,it)}.onFailure{AppState.operation(OperationState.BUILD_ERROR,"ESP-IDF setup: "+(it.message?:"failed"))}}}){Text("Prepare ESP32-S3")}}
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}}){Text("Bootloader")}
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(OperationState.RESET_ERROR,it.message?:"Reset failed")}}}){Text("Reset")}
@@ -61,12 +57,7 @@ class MainActivity:ComponentActivity(){
 
  private fun startBuild(source:String){
   projects.saveMain(source)
-  if(ContextCompat.checkSelfPermission(this,"com.termux.permission.RUN_COMMAND")!=PackageManager.PERMISSION_GRANTED){
-   AppState.operation(OperationState.BUILD_ERROR,"Grant 'Run commands in Termux environment' in App info > Permissions > Additional permissions, then return and tap Build.")
-   runCatching{startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+packageName)))}
-   return
-  }
-  buildBackend.build(source)
+  AppState.operation(OperationState.PREPARING_BUILD,"App-managed build backend is being connected; no external terminal is required.")
  }
  override fun onDestroy(){runCatching{unregisterReceiver(usbPermissionReceiver)};device.disconnect();super.onDestroy()}
 }
