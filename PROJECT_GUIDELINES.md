@@ -152,9 +152,9 @@ Install/prepare app -> connect XIAO ESP32-S3 -> open project -> edit main.c/main
 Android owns the physical USB connection.
 Reason: Android USB Host is the reliable hardware boundary.
 
-### D-002 — ACTIVE — 2026-10-03
-Termux/Linux is backend infrastructure, not normal UX.
-Reason: product goal is a native integrated workflow.
+### D-002 — SUPERSEDED by D-014 — 2026-10-03
+Termux/Linux was initially treated as hidden backend infrastructure.
+Reason for supersession: a clean Android install must not require Termux; it remains only a compatibility/reference backend.
 
 ### D-003 — ACTIVE — 2026-10-03
 Use official ESP-IDF for builds.
@@ -198,3 +198,16 @@ Reason: repository access was restored and the implementation was inspected dire
 ### D-013 — ACTIVE — 2026-10-04
 socat/PTY is compatibility infrastructure, not the desired final hardware abstraction.
 Reason: it exists to adapt Linux serial assumptions to TCP and causes ioctl/reset limitations. The new design should minimize this boundary while retaining a fallback until the replacement is proven.
+
+
+### D-014 — ACTIVE — 2026-10-04
+A clean compatible Android device must not require a preinstalled or manually configured Termux/proot/toolchain.
+Reason: the product contract is APK -> permissions -> automatic environment preparation -> ESP32 workflow. Existing Termux/proot remains a development/reference compatibility path, not an end-user prerequisite.
+
+### D-015 — ACTIVE — 2026-10-04
+UI communicates with the Build Backend through a structured contract and must not construct shell commands.
+Reason: this lets the current Termux/proot implementation and a preferred app-managed runtime be tested/replaced without changing product UX.
+
+### D-016 — ACTIVE — 2026-10-04
+Prefer versioned first-run provisioning of the large ESP-IDF/toolchain into app-controlled storage instead of embedding the full toolchain in the base APK.
+Reason: keep installation practical while preserving automatic setup, integrity checking, resumability and eventual offline builds.
