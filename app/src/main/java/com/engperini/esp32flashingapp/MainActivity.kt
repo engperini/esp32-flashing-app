@@ -24,6 +24,7 @@ import com.engperini.esp32flashingapp.core.OperationState
 import com.engperini.esp32flashingapp.device.UsbDeviceEngine
 import com.engperini.esp32flashingapp.project.ProjectManager
 import com.engperini.esp32flashingapp.runtime.IdfBuildExecutor
+import com.engperini.esp32flashingapp.runtime.SetupState
 import kotlinx.coroutines.launch
 
 class MainActivity:ComponentActivity(){
@@ -41,6 +42,8 @@ class MainActivity:ComponentActivity(){
   ContextCompat.registerReceiver(this,usbPermissionReceiver,IntentFilter(UsbDeviceEngine.ACTION_USB_PERMISSION),ContextCompat.RECEIVER_NOT_EXPORTED)
   setContent{MaterialTheme{
    val state by AppState.state.collectAsStateWithLifecycle()
+   val setup by SetupState.state.collectAsStateWithLifecycle()
+   if(setup.visible){ AlertDialog(onDismissRequest={},confirmButton={if(setup.current.completed||setup.error!=null) TextButton(onClick={SetupState.close()}){Text("Close")}},title={Text("ESP-IDF Setup")},text={Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(10.dp)){Text(setup.current.step.label,style=MaterialTheme.typography.titleMedium);Text(setup.current.status);if(setup.current.fraction!=null) LinearProgressIndicator(progress={setup.current.fraction!!},modifier=Modifier.fillMaxWidth()) else LinearProgressIndicator(modifier=Modifier.fillMaxWidth());setup.error?.let{Text("Error: $it")};Surface(Modifier.fillMaxWidth().height(260.dp),tonalElevation=2.dp){Text(if(setup.current.log.isBlank())"Waiting for installer output…" else setup.current.log,Modifier.padding(8.dp).verticalScroll(rememberScrollState()),fontFamily=FontFamily.Monospace,style=MaterialTheme.typography.bodySmall)}}}) }
    var source by remember { mutableStateOf(projects.loadMain()) }
    Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium)
@@ -59,12 +62,17 @@ class MainActivity:ComponentActivity(){
   projects.saveMain(source)
   lifecycleScope.launch {
    AppState.operation(OperationState.PREPARING_BUILD,"Preparing ESP-IDF 5.5 and ESP32-S3 tools as needed…")
+   SetupState.open()
    runCatching {
+    val executor=IdfBuildExecutor(applicationContext)
+    executor.prepare("esp32s3"){SetupState.progress(it)}
+    SetupState.close()
     AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware…")
-    IdfBuildExecutor(applicationContext).build(projects.projectDir,"esp32s3")
+    executor.build(projects.projectDir,"esp32s3")
    }.onSuccess { output ->
     AppState.operation(OperationState.BUILD_SUCCESS,output.takeLast(3500))
    }.onFailure {
+    SetupState.error(it.message?:"Setup/build failed")
     AppState.operation(OperationState.BUILD_ERROR,it.message?:"Build failed")
    }
   }
