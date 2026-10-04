@@ -6,6 +6,7 @@ import java.io.File
 class ProjectManager(context: Context) {
     private val root = File(context.filesDir, "projects/example")
     val mainFile = File(root, "main/main.c")
+    val projectDir: File get() = root
 
     fun ensureExampleProject(): File {
         File(root, "main").mkdirs()
