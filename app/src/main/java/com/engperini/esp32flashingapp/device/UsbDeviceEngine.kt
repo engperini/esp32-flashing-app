@@ -24,5 +24,5 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  fun write(data:ByteArray,timeoutMs:Int=1000):Int{requirePort().write(data,timeoutMs);return data.size}
  fun read(buffer:ByteArray,timeoutMs:Int=250)=requirePort().read(buffer,timeoutMs)
  private fun requirePort():UsbSerialPort=port?:throw IOException("USB device is not connected")
- private fun setBootReset(bootActive:Boolean,resetActive:Boolean){val p=requirePort();val dtr=if(config.swapDtrRts)resetActive else bootActive;val rts=if(config.swapDtrRts)bootActive else resetActive;p.setDTR(dtr xor config.invertDtr);p.setRTS(rts xor config.invertRts)}
+ private fun setBootReset(bootActive:Boolean,resetActive:Boolean){val p=requirePort();val lines=BootResetLineMapper.map(bootActive,resetActive,config);p.setDTR(lines.dtr);p.setRTS(lines.rts)}
 }
