@@ -13,18 +13,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier\nimport androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.engperini.esp32flashingapp.core.AppState
 import com.engperini.esp32flashingapp.core.OperationState
-import com.engperini.esp32flashingapp.device.UsbDeviceEngine\nimport com.engperini.esp32flashingapp.project.ProjectManager
+import com.engperini.esp32flashingapp.device.UsbDeviceEngine
+import com.engperini.esp32flashingapp.project.ProjectManager
 import kotlinx.coroutines.launch
 
 class MainActivity:ComponentActivity(){
- private lateinit var device:UsbDeviceEngine\n private lateinit var projects:ProjectManager
+ private lateinit var device:UsbDeviceEngine
+ private lateinit var projects:ProjectManager
  private val usbPermissionReceiver=object:BroadcastReceiver(){
   override fun onReceive(context:Context,intent:Intent){
    if(intent.action==UsbDeviceEngine.ACTION_USB_PERMISSION) device.onPermissionResult(intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED,false))
@@ -32,10 +35,12 @@ class MainActivity:ComponentActivity(){
  }
  override fun onCreate(savedInstanceState:Bundle?){
   super.onCreate(savedInstanceState)
-  device=UsbDeviceEngine(applicationContext)\n  projects=ProjectManager(applicationContext);projects.ensureExampleProject()
+  device=UsbDeviceEngine(applicationContext)
+  projects=ProjectManager(applicationContext);projects.ensureExampleProject()
   ContextCompat.registerReceiver(this,usbPermissionReceiver,IntentFilter(UsbDeviceEngine.ACTION_USB_PERMISSION),ContextCompat.RECEIVER_NOT_EXPORTED)
   setContent{MaterialTheme{
-   val state by AppState.state.collectAsStateWithLifecycle()\n   var source by remember { mutableStateOf(projects.loadMain()) }
+   val state by AppState.state.collectAsStateWithLifecycle()
+   var source by remember { mutableStateOf(projects.loadMain()) }
    Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium)
     Text(state.deviceLabel);Text("ESP-IDF 5.5 • Target: esp32s3");Text("State: "+state.operation.name);Text(state.detail)
