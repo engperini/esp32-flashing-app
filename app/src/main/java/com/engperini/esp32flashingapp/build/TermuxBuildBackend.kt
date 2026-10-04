@@ -46,7 +46,7 @@ echo "__FLASH_ARGS__"
 cat build/flash_args
 '"""
   val resultIntent=Intent(context,BuildResultReceiver::class.java)
-  val pi=PendingIntent.getBroadcast(context,1001,resultIntent,PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE)
+  val pi=PendingIntent.getBroadcast(context,1001,resultIntent,PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_MUTABLE)
   val intent=Intent(ACTION).apply {
    setClassName("com.termux","com.termux.app.RunCommandService")
    putExtra(PATH,"/data/data/com.termux/files/usr/bin/bash")
