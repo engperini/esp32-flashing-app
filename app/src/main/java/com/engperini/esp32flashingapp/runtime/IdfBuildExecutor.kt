@@ -16,11 +16,19 @@ class IdfBuildExecutor(private val context: Context) {
         override val cacheDir = context.cacheDir
     }
 
-    suspend fun prepare(target: String): String = withContext(Dispatchers.IO) {
+    suspend fun prepare(target: String, onProgress: (SetupProgress) -> Unit = {}): String = withContext(Dispatchers.IO) {
         val launcher = ProotLauncher(host)
         val cli = prepareLauncher()
         val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
-        require(File(rootfs, "etc/os-release").exists()) { "Debian build runtime is not provisioned" }
+        val osRelease = File(rootfs, "etc/os-release")
+        if (!osRelease.exists()) {
+            onProgress(SetupProgress(SetupStep.RUNTIME, "Downloading Debian 12 ARM64…"))
+            val output = executeRaw(launcher, listOf(cli.absolutePath, "install", "docker.io/library/debian:bookworm-slim", "--override-alias", IdfRuntimePlan.GUEST_ALIAS)) {
+                onProgress(SetupProgress(SetupStep.RUNTIME, "Installing Debian 12 ARM64…", it))
+            }
+            require(osRelease.exists()) { "Debian installation did not produce a usable rootfs: ${output.takeLast(3000)}" }
+            onProgress(SetupProgress(SetupStep.RUNTIME, "Debian runtime ready", output.takeLast(2000), 1f, true))
+        } else onProgress(SetupProgress(SetupStep.RUNTIME, "Debian runtime ready", completed = true, fraction = 1f))
         val log = StringBuilder()
         IdfBuildStages.stages(target).forEach { stage ->
             if (IdfBuildStages.isComplete(rootfs, stage)) {
@@ -28,12 +36,17 @@ class IdfBuildExecutor(private val context: Context) {
             } else {
                 val markerDir = File(rootfs, "opt/esp/.app-state").apply { mkdirs() }
                 val success = "__APP_STAGE_${stage.name.uppercase()}_OK__"
-                val output = executeStage(launcher, cli, stage.command + " && echo " + success, success)
+                onProgress(SetupProgress(if(stage.name == "common") SetupStep.ESP_IDF else SetupStep.TOOLCHAIN, if(stage.name == "common") "Installing dependencies and ESP-IDF 5.5…" else "Installing ESP32-S3 toolchain…"))
+                val output = executeStage(launcher, cli, stage.command + " && echo " + success, success) {
+                    onProgress(SetupProgress(if(stage.name == "common") SetupStep.ESP_IDF else SetupStep.TOOLCHAIN, if(stage.name == "common") "Installing dependencies and ESP-IDF 5.5…" else "Installing ESP32-S3 toolchain…", it))
+                }
                 File(markerDir, stage.marker).writeText("ok")
                 log.appendLine("${stage.name}: completed")
                 log.appendLine(output.takeLast(2000))
+                onProgress(SetupProgress(if(stage.name == "common") SetupStep.ESP_IDF else SetupStep.TOOLCHAIN, "${stage.name}: ready", output.takeLast(2000), 1f, true))
             }
         }
+        onProgress(SetupProgress(SetupStep.READY, "ESP-IDF 5.5 / $target ready", log.toString(), 1f, true))
         log.toString()
     }
 
@@ -63,7 +76,7 @@ class IdfBuildExecutor(private val context: Context) {
         return File(nativeDir, "libpr-cli.so")
     }
 
-    private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String): String {
+    private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String, onOutput: (String) -> Unit = {}): String {
         val session = launcher.startCustomSession(
             listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", command)
         ) ?: error("Unable to start provisioning stage")
@@ -74,11 +87,27 @@ class IdfBuildExecutor(private val context: Context) {
                 val count = session.read(buffer)
                 if (count <= 0) break
                 output.append(String(buffer, 0, count))
+                onOutput(output.takeLast(6000))
             }
         } finally {
             session.close()
         }
         require(output.contains(success)) { "Provisioning stage failed before $success: ${output.takeLast(4000)}" }
+        return output.toString()
+    }
+
+    private fun executeRaw(launcher: ProotLauncher, args: List<String>, onOutput: (String) -> Unit): String {
+        val session = launcher.startCustomSession(args) ?: error("Unable to start runtime setup")
+        val output = StringBuilder()
+        val buffer = ByteArray(8192)
+        try {
+            while (true) {
+                val count = session.read(buffer)
+                if (count <= 0) break
+                output.append(String(buffer, 0, count))
+                onOutput(output.takeLast(6000))
+            }
+        } finally { session.close() }
         return output.toString()
     }
 }
