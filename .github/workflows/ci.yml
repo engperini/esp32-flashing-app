@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  android:
+    name: Android APK + unit tests
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      GRADLE_USER_HOME: ${{ github.workspace }}/.gradle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          cd /tmp
+          curl -fsSLo tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          set +o pipefail
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null
+          set -o pipefail
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Install Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: Unit tests
+        run: gradle testDebugUnitTest
+      - name: Build debug APK
+        run: gradle assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32-flashing-app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  esp-idf:
+    name: ESP-IDF 5.5 reference firmware
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build esp32s3 firmware
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          cd test-firmware
+          idf.py set-target esp32s3
+          idf.py build
+          test -f build/bootloader/bootloader.bin
+          test -f build/partition_table/partition-table.bin
+          test -f build/esp32-flashing-test.bin
+          test -f build/flash_args
+          cat build/flash_args
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp-idf-5.5-reference-build
+          path: |
+            test-firmware/build/bootloader/bootloader.bin
+            test-firmware/build/partition_table/partition-table.bin
+            test-firmware/build/esp32-flashing-test.bin
+            test-firmware/build/flash_args
+          if-no-files-found: error
