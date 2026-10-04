@@ -40,8 +40,13 @@ class LinuxRuntimeProbe(private val context: Context) {
         } finally { prootSession.close() }
         require(prootOut.contains("PRoot", ignoreCase = true)) { "Embedded PRoot did not identify itself: $prootOut" }
 
+        val binDir = File(host.prefixDir, "bin").apply { mkdirs() }
+        val busyboxLink = File(binDir, "busybox")
+        if (!busyboxLink.exists()) {
+            android.system.Os.symlink(busybox.absolutePath, busyboxLink.absolutePath)
+        }
         val session = ProotLauncher(host).startCustomSession(
-            listOf(busybox.absolutePath, "sh", "-c",
+            listOf(busyboxLink.absolutePath, "sh", "-c",
                 "echo __APP_LINUX_RUNTIME_OK__; uname -m; echo uid=$(id -u); echo proot=embedded; echo loader=embedded")
         ) ?: error("Unable to start embedded runtime process")
         val output = StringBuilder()
