@@ -8,6 +8,8 @@ import androidx.core.content.ContextCompat
 import com.engperini.esp32flashingapp.core.AppState
 import com.engperini.esp32flashingapp.core.OperationState
 
+object BuildResultBus { var handler: ((Int,String,String)->Unit)? = null }
+
 class TermuxBuildBackend(private val context: Context) {
  companion object {
   const val ACTION="com.termux.RUN_COMMAND"
