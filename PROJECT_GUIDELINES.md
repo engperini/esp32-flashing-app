@@ -211,3 +211,12 @@ Reason: this lets the current Termux/proot implementation and a preferred app-ma
 ### D-016 — ACTIVE — 2026-10-04
 Prefer versioned first-run provisioning of the large ESP-IDF/toolchain into app-controlled storage instead of embedding the full toolchain in the base APK.
 Reason: keep installation practical while preserving automatic setup, integrity checking, resumability and eventual offline builds.
+
+
+### D-017 — ACTIVE — 2026-10-04
+Downloaded executables in app-private writable storage are not a valid Android runtime strategy.
+Reason: Android 10+ blocks direct execve of executable code from the writable app home. Runtime launcher/interpreter code must be shipped as APK native code; downloaded ESP-IDF/toolchain/rootfs content is treated as data behind that packaged execution boundary.
+
+### D-018 — ACTIVE — 2026-10-04
+The app-managed build-runtime proof must target arm64-v8a first and validate on Android 16 before replacing the compatibility backend.
+Reason: the XIAO test phone is Android 16/aarch64, while Espressif publishes an official Linux ARM64 toolchain. The proof must establish the Linux/glibc compatibility boundary and must not assume Linux binaries execute directly under Android/bionic.
