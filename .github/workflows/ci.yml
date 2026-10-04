@@ -48,10 +48,25 @@ jobs:
         run: gradle testDebugUnitTest
       - name: Build debug APK
         run: gradle assembleDebug
+      - name: Re-sign with reproducible public Android test key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aosp-testkey" "$GITHUB_WORKSPACE/app/build/outputs/apk/public-debug"
+          curl -fsSL https://raw.githubusercontent.com/aosp-mirror/platform_build/master/target/product/security/testkey.pk8 -o "$RUNNER_TEMP/aosp-testkey/testkey.pk8"
+          curl -fsSL https://raw.githubusercontent.com/aosp-mirror/platform_build/master/target/product/security/testkey.x509.pem -o "$RUNNER_TEMP/aosp-testkey/testkey.x509.pem"
+          APK="$(find app/build/outputs/apk/debug -name '*.apk' -print -quit)"
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" sign \
+            --key "$RUNNER_TEMP/aosp-testkey/testkey.pk8" \
+            --cert "$RUNNER_TEMP/aosp-testkey/testkey.x509.pem" \
+            --out app/build/outputs/apk/public-debug/esp32-flashing-app.apk \
+            "$APK"
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/public-debug/esp32-flashing-app.apk
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt" dump badging app/build/outputs/apk/public-debug/esp32-flashing-app.apk | grep "package: name='com.engperini.esp32flashingapp'"
       - uses: actions/upload-artifact@v4
         with:
-          name: esp32-flashing-app-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: esp32-flashing-app-public-debug-apk
+          path: app/build/outputs/apk/public-debug/esp32-flashing-app.apk
           if-no-files-found: error
 
   esp-idf:
