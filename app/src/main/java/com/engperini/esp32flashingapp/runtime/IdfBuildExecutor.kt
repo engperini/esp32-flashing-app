@@ -100,7 +100,7 @@ class IdfBuildExecutor(private val context: Context) {
 
     private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String, onOutput: (String) -> Unit = {}, operation: String = "Provisioning stage"): String {
         val session = launcher.startCustomSession(
-            listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", "/bin/sh", "-lc", command)
+            listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", command)
         ) ?: error("Unable to start $operation")
         val output = StringBuilder()
         val buffer = ByteArray(8192)
