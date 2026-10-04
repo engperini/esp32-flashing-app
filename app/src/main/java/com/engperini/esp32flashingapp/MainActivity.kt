@@ -104,7 +104,7 @@ class MainActivity:ComponentActivity(){
     IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
    }.onSuccess { output ->
     BuildState.success(output)
-    AppState.operation(OperationState.BUILD_SUCCESS,output.takeLast(3500))
+    AppState.operation(OperationState.BUILD_SUCCESS,"Firmware built successfully")
    }.onFailure {
     val message=it.message?:"Build failed"
     BuildState.error(message)
