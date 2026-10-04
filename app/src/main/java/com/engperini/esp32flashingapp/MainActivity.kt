@@ -1,6 +1,6 @@
 package com.engperini.esp32flashingapp
 
-import android.os.Bundle
+import android.os.Bundle\nimport android.content.BroadcastReceiver\nimport android.content.Context\nimport android.content.Intent\nimport android.content.IntentFilter\nimport android.hardware.usb.UsbManager\nimport androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
  private lateinit var device: UsbDeviceEngine
  override fun onCreate(savedInstanceState: Bundle?) {
   super.onCreate(savedInstanceState)
-  device=UsbDeviceEngine(applicationContext)
+  device=UsbDeviceEngine(applicationContext)\n  ContextCompat.registerReceiver(this,usbPermissionReceiver,IntentFilter(UsbDeviceEngine.ACTION_USB_PERMISSION),ContextCompat.RECEIVER_NOT_EXPORTED)
   setContent {
    MaterialTheme {
     val state by AppState.state.collectAsStateWithLifecycle()
