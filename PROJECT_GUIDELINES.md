@@ -220,3 +220,12 @@ Reason: Android 10+ blocks direct execve of executable code from the writable ap
 ### D-018 — ACTIVE — 2026-10-04
 The app-managed build-runtime proof must target arm64-v8a first and validate on Android 16 before replacing the compatibility backend.
 Reason: the XIAO test phone is Android 16/aarch64, while Espressif publishes an official Linux ARM64 toolchain. The proof must establish the Linux/glibc compatibility boundary and must not assume Linux binaries execute directly under Android/bionic.
+
+
+### D-019 — ACTIVE — 2026-10-04
+Provision build tools on demand by selected ESP target rather than bundling every architecture toolchain in the APK.
+Reason: the common app-managed Linux/glibc runtime and ESP-IDF infrastructure are reusable; target-specific tools are downloaded, integrity-checked, versioned and cached only when the user selects a target such as `esp32s3`. Subsequent builds reuse the cached tools offline.
+
+### D-020 — ACTIVE — 2026-10-04
+Use a glibc ARM64 guest as the production build userspace; Alpine/musl remains only the runtime proof.
+Reason: Espressif's official Linux ARM64 ESP-IDF host tools target a conventional glibc Linux environment. Avoid adding a musl compatibility layer where it provides no product benefit.
