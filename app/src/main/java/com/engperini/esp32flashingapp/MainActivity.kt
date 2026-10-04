@@ -1,12 +1,47 @@
 package com.engperini.esp32flashingapp
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.engperini.esp32flashingapp.core.AppState
-class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setContent{MaterialTheme{val state by AppState.state.collectAsStateWithLifecycle();Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium);Text(state.deviceLabel);Text("ESP-IDF 5.5 • Target: esp32s3");Text(state.operation.name);Text(state.detail);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={}){Text("Build")};Button(onClick={}){Text("Flash")};Button(onClick={}){Text("Build & Flash")}};OutlinedButton(onClick={}){Text("Monitor")};HorizontalDivider();Text("Foundation initialized. Device/Flash engines are separated from Build and UI.")}}}}}}
+import com.engperini.esp32flashingapp.device.UsbDeviceEngine
+import kotlinx.coroutines.launch
+
+class MainActivity : ComponentActivity() {
+ private lateinit var device: UsbDeviceEngine
+ override fun onCreate(savedInstanceState: Bundle?) {
+  super.onCreate(savedInstanceState)
+  device=UsbDeviceEngine(applicationContext)
+  setContent {
+   MaterialTheme {
+    val state by AppState.state.collectAsStateWithLifecycle()
+    Scaffold { padding ->
+     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+      Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium)
+      Text(state.deviceLabel)
+      Text("ESP-IDF 5.5 • Target: esp32s3")
+      Text("State: "+state.operation.name)
+      Text(state.detail)
+      Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+       Button(onClick={ if(device.connect()) Unit else Unit }){Text("Connect USB")}
+       OutlinedButton(onClick={device.disconnect()}){Text("Disconnect")}
+      }
+      Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+       Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(com.engperini.esp32flashingapp.core.OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}}){Text("Bootloader")}
+       Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(com.engperini.esp32flashingapp.core.OperationState.RESET_ERROR,it.message?:"Reset failed")}}}){Text("Reset")}
+      }
+      HorizontalDivider()
+      Text("Hardware diagnostic build: USB permission/connect, BOOT and RESET are active. Build/Flash remain disabled until the transport is validated.")
+     }
+    }
+   }
+  }
+ }
+}
