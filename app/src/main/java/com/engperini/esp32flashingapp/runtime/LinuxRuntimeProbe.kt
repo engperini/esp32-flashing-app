@@ -35,21 +35,37 @@ class LinuxRuntimeProbe(private val context: Context) {
         val launcher = ProotLauncher(host)
         val version = capture(launcher, listOf(proot.absolutePath, "--version"), "PRoot")
         val rootfs = File(host.prefixDir, "var/lib/pr/containers/alpine/rootfs")
-        val installOutput = if (!File(rootfs, "etc/os-release").exists()) {
-            capture(
+        val osRelease = File(rootfs, "etc/os-release")
+        val installOutput = if (!osRelease.exists()) {
+            val installLog = captureUntilExit(
                 launcher,
-                listOf(cli.absolutePath, "install", "docker.io/library/alpine:3.21", "--override-alias", "alpine"),
-                "installation completed"
+                listOf(cli.absolutePath, "install", "docker.io/library/alpine:3.21", "--override-alias", "alpine")
             )
+            require(osRelease.exists()) { "OCI install ended without a usable Alpine rootfs: $installLog" }
+            "Alpine ARM64 rootfs provisioned"
         } else "Alpine rootfs already provisioned"
 
         val guest = capture(
             launcher,
             listOf(cli.absolutePath, "login", "alpine", "--",
-                "printf", "__APP_LINUX_GUEST_OK__\\n", "&&", "cat", "/etc/os-release", "&&", "uname", "-m"),
+                "cat", "/etc/os-release", ";", "uname", "-m", ";", "echo", "__APP_LINUX_GUEST_OK__"),
             "__APP_LINUX_GUEST_OK__"
         )
         version.trim() + "\n" + installOutput.trim() + "\n" + guest.trim()
+    }
+
+    private fun captureUntilExit(launcher: ProotLauncher, args: List<String>): String {
+        val session = launcher.startCustomSession(args) ?: error("Unable to execute: ${args.firstOrNull()}")
+        val output = StringBuilder()
+        val buffer = ByteArray(8192)
+        try {
+            while (true) {
+                val n = session.read(buffer)
+                if (n <= 0) break
+                output.append(String(buffer, 0, n))
+            }
+        } finally { session.close() }
+        return output.toString()
     }
 
     private fun capture(
