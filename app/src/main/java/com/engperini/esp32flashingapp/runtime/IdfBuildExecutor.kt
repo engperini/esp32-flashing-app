@@ -57,8 +57,8 @@ class IdfBuildExecutor(private val context: Context) {
         val launcher = ProotLauncher(host)
         val cli = prepareLauncher()
         val success = "__APP_IDF_DOCTOR_OK__"
-        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' && " +
-            ". '${IdfRuntimePlan.IDF_PATH}/export.sh' && " +
+        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' && " +
+            "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh && " +
             "echo '--- ESP-IDF ---' && idf.py --version && " +
             "echo '--- Python ---' && python3 --version && " +
             "echo '--- CMake ---' && cmake --version | head -n 1 && " +
@@ -77,8 +77,8 @@ class IdfBuildExecutor(private val context: Context) {
         val cli = prepareLauncher()
         val guestProject = project.absolutePath
         val success = "__APP_IDF_BUILD_OK__"
-        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' && " +
-            ". '${IdfRuntimePlan.IDF_PATH}/export.sh' && " +
+        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' && " +
+            "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh && " +
             "cd '$guestProject' && idf.py set-target '$target' && idf.py build && echo $success"
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
