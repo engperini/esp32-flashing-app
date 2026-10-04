@@ -56,29 +56,41 @@ class MainActivity:ComponentActivity(){
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}}){Text("Bootloader")}
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(OperationState.RESET_ERROR,it.message?:"Reset failed")}}}){Text("Reset")}
     }
-    HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={startBuild(source)}){Text("Build")};Button(onClick={AppState.operation(OperationState.PREPARING_BUILD,"Build first; automatic flash will follow after successful artifact validation");startBuild(source)}){Text("Build & Flash")}};HorizontalDivider();Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Serial Monitor • 115200 • RX ${state.rxBytes} bytes");TextButton(onClick={AppState.clearSerial()}){Text("Clear")}};Surface(Modifier.fillMaxWidth().height(280.dp),tonalElevation=2.dp){Text(if(state.serialText.isEmpty())"Waiting for serial data…" else state.serialText,Modifier.padding(10.dp).verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)}
+    HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={configureIdf()}){Text("Configure ESP-IDF")}}
+    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={startBuild(source)}){Text("Build")};Button(onClick={AppState.operation(OperationState.PREPARING_BUILD,"Build first; automatic flash will follow after successful artifact validation");startBuild(source)}){Text("Build & Flash")}};HorizontalDivider();Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Serial Monitor • 115200 • RX ${state.rxBytes} bytes");TextButton(onClick={AppState.clearSerial()}){Text("Clear")}};Surface(Modifier.fillMaxWidth().height(280.dp),tonalElevation=2.dp){Text(if(state.serialText.isEmpty())"Waiting for serial data…" else state.serialText,Modifier.padding(10.dp).verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)}
    }}
   }}
+ }
+
+ private fun configureIdf(){
+  lifecycleScope.launch {
+   AppState.operation(OperationState.PREPARING_BUILD,"Configuring ESP-IDF 5.5 for ESP32-S3…")
+   SetupState.open()
+   runCatching {
+    IdfBuildExecutor(applicationContext).prepare("esp32s3"){SetupState.progress(it)}
+   }.onSuccess {
+    AppState.operation(OperationState.IDLE,"ESP-IDF 5.5 / esp32s3 ready")
+   }.onFailure {
+    val message=it.message?:"ESP-IDF setup failed"
+    SetupState.error(message)
+    AppState.operation(OperationState.BUILD_ERROR,message)
+   }
+  }
  }
 
  private fun startBuild(source:String){
   projects.saveMain(source)
   lifecycleScope.launch {
-   AppState.operation(OperationState.PREPARING_BUILD,"Preparing ESP-IDF 5.5 and ESP32-S3 tools as needed…")
-   SetupState.open()
+   BuildState.open()
+   AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware…")
    runCatching {
-    val executor=IdfBuildExecutor(applicationContext)
-    executor.prepare("esp32s3"){SetupState.progress(it)}
-    SetupState.close()
-    BuildState.open()
-    AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware…")
-    executor.buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
+    IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
    }.onSuccess { output ->
     BuildState.success(output)
     AppState.operation(OperationState.BUILD_SUCCESS,output.takeLast(3500))
    }.onFailure {
     val message=it.message?:"Build failed"
-    if(BuildState.state.value.visible) BuildState.error(message) else SetupState.error(message)
+    BuildState.error(message)
     AppState.operation(OperationState.BUILD_ERROR,message)
    }
   }
