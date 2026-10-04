@@ -108,7 +108,7 @@ class MainActivity:ComponentActivity(){
    }.onFailure {
     val message=it.message?:"Build failed"
     BuildState.error(message)
-    AppState.operation(OperationState.BUILD_ERROR,message)
+    AppState.operation(OperationState.BUILD_ERROR,"Build failed — see Build details")
    }
   }
  }
