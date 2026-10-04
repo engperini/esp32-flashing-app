@@ -45,7 +45,7 @@ class MainActivity:ComponentActivity(){
    Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium)
     Text(state.deviceLabel);Text("ESP-IDF 5.5 • Target: esp32s3");Text("State: "+state.operation.name);Text(state.detail)
-    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={device.connect()}){Text("Connect USB")};OutlinedButton(onClick={device.disconnect()}){Text("Disconnect")};OutlinedButton(onClick={lifecycleScope.launch{AppState.operation(OperationState.PREPARING_BUILD,"Preparing ESP-IDF 5.5 for ESP32-S3…");runCatching{IdfBuildExecutor(applicationContext).prepare("esp32s3")}.onSuccess{AppState.operation(OperationState.IDLE,it)}.onFailure{AppState.operation(OperationState.BUILD_ERROR,"ESP-IDF setup: "+(it.message?:"failed"))}}}){Text("Prepare ESP32-S3")}}
+    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={device.connect()}){Text("Connect USB")};OutlinedButton(onClick={device.disconnect()}){Text("Disconnect")}}
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}}){Text("Bootloader")}
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(OperationState.RESET_ERROR,it.message?:"Reset failed")}}}){Text("Reset")}
@@ -57,7 +57,17 @@ class MainActivity:ComponentActivity(){
 
  private fun startBuild(source:String){
   projects.saveMain(source)
-  AppState.operation(OperationState.PREPARING_BUILD,"App-managed build backend is being connected; no external terminal is required.")
+  lifecycleScope.launch {
+   AppState.operation(OperationState.PREPARING_BUILD,"Preparing ESP-IDF 5.5 and ESP32-S3 tools as needed…")
+   runCatching {
+    AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware…")
+    IdfBuildExecutor(applicationContext).build(projects.projectDir,"esp32s3")
+   }.onSuccess { output ->
+    AppState.operation(OperationState.BUILD_SUCCESS,output.takeLast(3500))
+   }.onFailure {
+    AppState.operation(OperationState.BUILD_ERROR,it.message?:"Build failed")
+   }
+  }
  }
  override fun onDestroy(){runCatching{unregisterReceiver(usbPermissionReceiver)};device.disconnect();super.onDestroy()}
 }
