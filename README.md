@@ -37,11 +37,11 @@ Validated on a physical Android phone:
 - app-managed Debian ARM64/glibc runtime;
 - ESP-IDF 5.5 and ESP32-S3 toolchain provisioning;
 - ESP-IDF Doctor;
-- complete ESP32-S3 firmware build;
-- native Android USB serial monitor;
+- complete and incremental ESP32-S3 firmware build, including background-safe foreground execution;
+- native Android USB serial monitor at 115200 baud;\n- native Android ESP32-S3 flash write and MD5 verification;\n- reference firmware runs physically after flash: GPIO21 built-in LED heartbeat and one serial status line per second;
 - automatic ESP32-S3 ROM bootloader entry.
 
-Native Android flashing is currently under active development and physical validation. Do not treat the project as a finished production flasher yet.
+The end-to-end build, native flash, firmware execution and serial monitor paths are physically validated. Remaining device-lifecycle TODO: automatically reopen the Android USB connection after the ESP32-S3 resets/re-enumerates at the end of a flash, so no physical cable reconnect is required.
 
 ## Requirements
 
