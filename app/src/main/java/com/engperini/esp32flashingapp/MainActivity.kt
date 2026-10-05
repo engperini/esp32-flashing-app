@@ -110,8 +110,9 @@ class MainActivity:ComponentActivity(){
      check(transport.sync()){"ESP32-S3 ROM did not answer SYNC"}
      FlashState.status("ESP32-S3 ROM SYNC successful.")
      transport.flash(plan){ FlashState.status(it) }
-     FlashState.success("Flash completed and verified — resetting ESP32-S3…")
-     device.resetToApplication()
+     FlashState.status("Flash completed and verified — leaving USB download mode…")
+     transport.watchdogReset()
+     FlashState.success("Flash completed and verified — reconnecting application USB…")
      device.reconnectApplication()
     } finally {
      device.releaseTransport()
