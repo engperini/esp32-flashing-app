@@ -24,15 +24,24 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  @Volatile private var transportOwned=false
  private var rxBytes=0L
  private var txBytes=0L
+ @Volatile private var connectAfterPermission=false
  fun hasDevice()=prober.findAllDrivers(usbManager).isNotEmpty()
  fun isConnected()=port!=null
  fun connect():Boolean{
   if(port!=null)return true
   val drv=prober.findAllDrivers(usbManager).firstOrNull()?:run{AppState.operation(OperationState.WAITING_DEVICE,"No supported ESP32 USB serial device");return false}
-  if(!usbManager.hasPermission(drv.device)){requestUsbPermission(drv.device);AppState.operation(OperationState.WAITING_DEVICE,"USB permission requested");return false}
+  if(!usbManager.hasPermission(drv.device)){connectAfterPermission=true;requestUsbPermission(drv.device);AppState.operation(OperationState.WAITING_DEVICE,"USB permission requested");return false}
   return try{val c=usbManager.openDevice(drv.device)?:throw IOException("openDevice returned null");val p=drv.ports.firstOrNull()?:run{c.close();throw IOException("USB serial driver has no ports")};p.open(c);p.setParameters(config.baudRate,8,UsbSerialPort.STOPBITS_1,UsbSerialPort.PARITY_NONE);connection=c;port=p;setBootReset(false,false);AppState.device(drv.javaClass.simpleName+" / "+drv.device.deviceName);AppState.operation(OperationState.IDLE,"USB connected");startMonitor();true}catch(e:Exception){disconnect();AppState.operation(OperationState.DEVICE_DISCONNECTED,"USB open failed: "+e.message);false}
  }
- fun onPermissionResult(granted:Boolean){if(granted){AppState.operation(OperationState.IDLE,"USB permission granted");connect()}else AppState.operation(OperationState.USB_PERMISSION_ERROR,"USB permission denied")}
+ fun onPermissionResult(granted:Boolean){
+  if(granted){
+   AppState.operation(OperationState.IDLE,"USB permission granted")
+   if(connectAfterPermission){connectAfterPermission=false;connect()}
+  }else{
+   connectAfterPermission=false
+   AppState.operation(OperationState.USB_PERMISSION_ERROR,"USB permission denied")
+  }
+ }
  fun disconnect(){monitorJob?.cancel();monitorJob=null;runCatching{port?.close()};runCatching{connection?.close()};port=null;connection=null;AppState.device("No ESP32 connected")}
  suspend fun enterBootloader(){requirePort();AppState.operation(OperationState.ENTERING_BOOTLOADER,"Asserting BOOT + RESET");setBootReset(true,true);delay(config.resetPulseMs);setBootReset(true,false);delay(config.bootloaderHoldMs);setBootReset(false,false);AppState.operation(OperationState.BOOTLOADER_READY,"Bootloader ready")}
  suspend fun resetToApplication(){requirePort();AppState.operation(OperationState.RESETTING,"Resetting ESP32");setBootReset(false,true);delay(config.resetPulseMs);setBootReset(false,false);AppState.operation(OperationState.WAITING_APPLICATION,"Waiting for application serial")}
