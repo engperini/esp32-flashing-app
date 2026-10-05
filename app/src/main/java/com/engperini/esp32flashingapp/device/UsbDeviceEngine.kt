@@ -39,7 +39,13 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  fun acquireTransport(){monitorJob?.cancel();monitorJob=null;transportOwned=true}
  fun releaseTransport(){transportOwned=false;startMonitor()}
  fun write(data:ByteArray,timeoutMs:Int=1000):Int{requirePort().write(data,timeoutMs);txBytes+=data.size;AppState.counters(rxBytes,txBytes);return data.size}
- private fun startMonitor(){monitorJob?.cancel();monitorJob=scope.launch{val buffer=ByteArray(4096);while(isActive&&port!=null&&!transportOwned){try{val n=read(buffer,250);if(n>0){rxBytes+=n;AppState.counters(rxBytes,txBytes);AppState.serial(buffer.copyOf(n).toString(Charsets.UTF_8));AppState.operation(OperationState.MONITORING,"Serial active")}}catch(e:IOException){if(isActive){AppState.operation(OperationState.MONITOR_ERROR,"Serial read failed: "+e.message)};break}}}}
+ private fun startMonitor(){monitorJob?.cancel();monitorJob=scope.launch{val buffer=ByteArray(4096);while(isActive&&port!=null&&!transportOwned){try{val n=read(buffer,250);if(n>0){rxBytes+=n;AppState.counters(rxBytes,txBytes);AppState.serial(buffer.copyOf(n).toString(Charsets.UTF_8));AppState.operation(OperationState.MONITORING,"Serial active")}}catch(e:IOException){if(isActive){handleDeviceLoss(e)};break}}}}
+ private fun handleDeviceLoss(error: IOException){
+  monitorJob=null
+  runCatching{port?.close()};runCatching{connection?.close()};port=null;connection=null
+  AppState.device("No ESP32 connected")
+  AppState.operation(OperationState.DEVICE_DISCONNECTED,"USB disconnected")
+ }
  fun read(buffer:ByteArray,timeoutMs:Int=250)=requirePort().read(buffer,timeoutMs)
  private fun requestUsbPermission(device:UsbDevice){val pi=PendingIntent.getBroadcast(appContext,device.deviceId,Intent(ACTION_USB_PERMISSION).setPackage(appContext.packageName),PendingIntent.FLAG_IMMUTABLE);usbManager.requestPermission(device,pi)}
  private fun requirePort():UsbSerialPort=port?:throw IOException("USB device is not connected")
