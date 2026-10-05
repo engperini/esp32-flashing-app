@@ -75,6 +75,22 @@ class IdfBuildExecutor(private val context: Context) {
         executeStage(launcher, cli, command, success, onOutput, "ESP-IDF Doctor")
     }
 
+    suspend fun fullClean(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
+        requireTarget(target)
+        require(project.isDirectory) { "Project directory not found: " + project }
+        requireRuntimeReady()
+        val launcher = ProotLauncher(host)
+        val cli = prepareLauncher()
+        val success = "__APP_IDF_FULLCLEAN_OK__"
+        val guestProject = "/workspace/project"
+        val command = "export IDF_TOOLS_PATH=" + shQuote(IdfRuntimePlan.IDF_TOOLS_PATH) +
+            " IDF_PATH=" + shQuote(IdfRuntimePlan.IDF_PATH) + " && " +
+            "cd " + shQuote(IdfRuntimePlan.IDF_PATH) + " && . ./export.sh >/dev/null && " +
+            "cd " + shQuote(guestProject) + " || { echo \"ERROR: Project workspace is not accessible inside Linux runtime.\"; exit 66; }; " +
+            "idf.py fullclean && echo " + success
+        executeStage(launcher, cli, command, success, onOutput, "Full Clean", listOf(project.canonicalPath + ":" + guestProject))
+    }
+
     suspend fun buildPrepared(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
         requireTarget(target)
         require(project.isDirectory) { "Project directory not found: " + project }
