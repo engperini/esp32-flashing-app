@@ -4,6 +4,8 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.os.PowerManager
+import com.engperini.esp32flashingapp.flash.FlashPlanLoader
 import androidx.core.app.NotificationCompat
 import com.engperini.esp32flashingapp.core.AppState
 import com.engperini.esp32flashingapp.core.OperationState
@@ -33,6 +35,7 @@ class IdfOperationService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var running = false
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -42,6 +45,9 @@ class IdfOperationService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, notification("Starting ESP-IDF operation…"))
+        if (wakeLock?.isHeld != true) {
+            wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, packageName + ":idf-operation").apply { acquire(60 * 60 * 1000L) }
+        }
         if (running) return START_NOT_STICKY
         running = true
         val target = intent?.getStringExtra(EXTRA_TARGET) ?: "esp32s3"
@@ -70,8 +76,9 @@ class IdfOperationService : Service() {
         runCatching { IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir, target) { BuildState.output(it) } }
             .onSuccess {
                 FlashPlanLoader.promoteLastGood(projects.projectDir)
+                FlashPlanLoader.promoteLastGood(projects.projectDir)
                 BuildState.success(it)
-                AppState.operation(OperationState.BUILD_SUCCESS, "Firmware built successfully")
+                AppState.operation(OperationState.BUILD_SUCCESS, "Firmware built successfully • last-good artifacts saved")
                 update(if (requestFlash) "Build completed — reopen app to start Flash" else "Build completed")
                 if (requestFlash) AppState.operation(OperationState.BUILD_SUCCESS, "Build completed — tap Flash to continue safely")
             }.onFailure {
@@ -123,6 +130,6 @@ class IdfOperationService : Service() {
             .build()
     }
 
-    override fun onDestroy() { scope.cancel(); super.onDestroy() }
+    override fun onDestroy() { if (wakeLock?.isHeld == true) wakeLock?.release(); wakeLock = null; scope.cancel(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
 }
