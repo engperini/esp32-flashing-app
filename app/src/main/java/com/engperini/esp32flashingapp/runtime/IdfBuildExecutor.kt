@@ -77,9 +77,82 @@ class IdfBuildExecutor(private val context: Context) {
         val cli = prepareLauncher()
         val guestProject = project.absolutePath
         val success = "__APP_IDF_BUILD_OK__"
-        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' && " +
+        val targetGuard = "if [ ! -f sdkconfig ] || ! grep -q '^CONFIG_IDF_TARGET=\\\"$target\\\"
+        executeStage(launcher, cli, command, success, onOutput, "Build")
+    }
+
+    private fun prepareLauncher(): File {
+        host.prefixDir.mkdirs(); host.homeDir.mkdirs()
+        val nativeDir = File(context.applicationInfo.nativeLibraryDir)
+        val binDir = File(host.prefixDir, "bin").apply { mkdirs() }
+        mapOf("busybox" to "libbusybox.so", "proot" to "libproot.so", "pr-cli" to "libpr-cli.so").forEach { (name, lib) ->
+            val target = File(nativeDir, lib)
+            require(target.exists()) { "Embedded runtime file missing: $lib" }
+            val dest = File(binDir, name)
+            // APK updates move nativeLibraryDir. Always refresh these tiny launcher links.
+            if (dest.exists() || runCatching { dest.canonicalPath != dest.absolutePath }.getOrDefault(false)) dest.delete()
+            Os.symlink(target.absolutePath, dest.absolutePath)
+        }
+        return File(nativeDir, "libpr-cli.so")
+    }
+
+    private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String, onOutput: (String) -> Unit = {}, operation: String = "Provisioning stage"): String {
+        val session = launcher.startCustomSession(
+            listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", command)
+        ) ?: error("Unable to start $operation")
+        val output = StringBuilder()
+        val buffer = ByteArray(8192)
+        try {
+            while (true) {
+                val count = session.read(buffer)
+                if (count <= 0) break
+                output.append(String(buffer, 0, count))
+                onOutput(output.toString().takeLast(6000))
+            }
+        } finally {
+            session.close()
+        }
+        if (!output.contains(success)) {
+            val lines = output.lines()
+            val exitMarker = Regex("__APP_IDF_BUILD_EXIT__(\\d+)").find(output)?.groupValues?.getOrNull(1)
+            val diagnostic = lines.filter { line ->
+                val s = line.lowercase()
+                s.contains("error:") || s.contains("fatal:") || s.contains("failed:") || s.startsWith("failed") ||
+                    s.contains("ninja:") || s.contains("killed") || s.contains("no space left") ||
+                    s.contains("cannot allocate memory") || s.contains("out of memory")
+            }.takeLast(60).joinToString("\n")
+            val cause = when {
+                diagnostic.isNotBlank() -> diagnostic
+                exitMarker != null -> "Build process exited with code $exitMarker. No compiler diagnostic was emitted.\n" + output.takeLast(5000)
+                else -> "Build process ended before reporting an exit code. Android/runtime may have terminated it.\n" + output.takeLast(5000)
+            }
+            error("$operation failed:\n$cause")
+        }
+        return output.toString()
+    }
+
+    private fun executeRaw(launcher: ProotLauncher, args: List<String>, onOutput: (String) -> Unit): String {
+        val session = launcher.startCustomSession(args) ?: error("Unable to start runtime setup")
+        val output = StringBuilder()
+        val buffer = ByteArray(8192)
+        try {
+            while (true) {
+                val count = session.read(buffer)
+                if (count <= 0) break
+                output.append(String(buffer, 0, count))
+                onOutput(output.toString().takeLast(6000))
+            }
+        } finally { session.close() }
+        return output.toString()
+    }
+}
+ sdkconfig; then idf.py set-target '$target'; fi"
+        // Keep ESP-IDF's native CMake/Ninja/ccache incremental build. Limit Ninja concurrency on
+        // phones to avoid Android killing a memory-heavy parallel compile without a compiler error.
+        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' IDF_BUILD_JOBS='2' && " +
             "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh >/dev/null && " +
-            "cd '$guestProject' && idf.py set-target '$target' >/dev/null && idf.py build && echo $success"
+            "cd '$guestProject' && $targetGuard && idf.py build -j 2; rc=\$?; " +
+            "echo __APP_IDF_BUILD_EXIT__\$rc; [ \$rc -eq 0 ] && echo $success; exit \$rc"
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
 
