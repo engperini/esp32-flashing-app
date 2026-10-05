@@ -112,7 +112,7 @@ class MainActivity:ComponentActivity(){
      transport.flash(plan){ FlashState.status(it) }
      FlashState.success("Flash completed and verified — resetting ESP32-S3…")
      device.resetToApplication()
-     AppState.operation(OperationState.WAITING_APPLICATION,"Firmware flashed and verified; waiting for application serial")
+     device.reconnectApplication()
     } finally {
      device.releaseTransport()
     }
