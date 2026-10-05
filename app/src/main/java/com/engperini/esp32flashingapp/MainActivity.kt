@@ -62,7 +62,7 @@ class MainActivity:ComponentActivity(){
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(OperationState.RESET_ERROR,it.message?:"Reset failed")}}}){Text("Reset")}
     }
     HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={configureIdf()}){Text("Configure ESP-IDF")};OutlinedButton(onClick={runDoctor()}){Text("Doctor")}}
-    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={startBuild(source)}){Text("Build")};Button(enabled=device.isConnected(),onClick={startBuildAndSync(source)}){Text("Build & Flash")}};HorizontalDivider();Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Serial Monitor • 115200 • RX ${state.rxBytes} bytes");TextButton(onClick={AppState.clearSerial()}){Text("Clear")}};Surface(Modifier.fillMaxWidth().height(280.dp),tonalElevation=2.dp){Text(if(state.serialText.isEmpty())"Waiting for serial data…" else state.serialText,Modifier.padding(10.dp).verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)}
+    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={startBuild(source)}){Text("Build")};Button(enabled=device.isConnected(),onClick={startFlash()}){Text("Flash")};Button(enabled=device.isConnected(),onClick={startBuildAndFlash(source)}){Text("Build & Flash")}};HorizontalDivider();Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Serial Monitor • 115200 • RX ${state.rxBytes} bytes");TextButton(onClick={AppState.clearSerial()}){Text("Clear")}};Surface(Modifier.fillMaxWidth().height(280.dp),tonalElevation=2.dp){Text(if(state.serialText.isEmpty())"Waiting for serial data…" else state.serialText,Modifier.padding(10.dp).verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)}
    }}
   }}
  }
@@ -117,8 +117,7 @@ class MainActivity:ComponentActivity(){
    }
   }
  }
- private fun startBuildAndSync(source:String){
-  projects.saveMain(source)
+ private fun startFlash(){
   lifecycleScope.launch {
    FlashState.open()
    AppState.operation(OperationState.PREPARING_BUILD,"Validating existing firmware artifacts…")
@@ -142,6 +141,24 @@ class MainActivity:ComponentActivity(){
     val message=it.message?:"Build & Flash preparation failed"
     FlashState.error(message)
     AppState.operation(OperationState.BUILD_ERROR,"Build & Flash stopped — see details")
+   }
+  }
+ }
+ private fun startBuildAndFlash(source:String){
+  projects.saveMain(source)
+  lifecycleScope.launch {
+   BuildState.open()
+   AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware before flash…")
+   runCatching {
+    IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
+   }.onSuccess {
+    BuildState.success(it)
+    BuildState.close()
+    startFlash()
+   }.onFailure {
+    val message=it.message?:"Build failed"
+    BuildState.error(message)
+    AppState.operation(OperationState.BUILD_ERROR,"Build failed — flash not started")
    }
   }
  }
