@@ -12,6 +12,7 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
         private const val ESP_FLASH_BEGIN = 0x02
         private const val ESP_FLASH_DATA = 0x03
         private const val ESP_SYNC = 0x08
+        private const val ESP_WRITE_REG = 0x09
         private const val ESP_SPI_SET_PARAMS = 0x0B
         private const val ESP_SPI_ATTACH = 0x0D
         private const val ESP_SPI_FLASH_MD5 = 0x13
@@ -22,6 +23,10 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
         private const val SLIP_ESC = 0xDB
         private const val SLIP_ESC_END = 0xDC
         private const val SLIP_ESC_ESC = 0xDD
+        private const val RTC_CNTL_WDTCONFIG0_REG = 0x60008098
+        private const val RTC_CNTL_WDTCONFIG1_REG = 0x6000809C
+        private const val RTC_CNTL_WDTWPROTECT_REG = 0x600080B0
+        private const val RTC_CNTL_WDT_WKEY = 0x50D83AA1
     }
 
     suspend fun sync(): Boolean {
@@ -72,6 +77,23 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
             val actual = response.copyOfRange(0, min(32, response.size)).toString(Charsets.US_ASCII).lowercase()
             check(actual == expected) { "MD5 verification failed at 0x" + image.address.toString(16) }
             onProgress("Verified 0x" + image.address.toString(16) + " • MD5 OK")
+        }
+    }
+
+    suspend fun watchdogReset() {
+        writeReg(RTC_CNTL_WDTWPROTECT_REG, RTC_CNTL_WDT_WKEY)
+        writeReg(RTC_CNTL_WDTCONFIG1_REG, 2000)
+        writeReg(RTC_CNTL_WDTCONFIG0_REG, (1 shl 31) or (5 shl 28) or (1 shl 8) or 2)
+        writeReg(RTC_CNTL_WDTWPROTECT_REG, 0, waitResponse = false)
+        delay(500)
+    }
+
+    private suspend fun writeReg(address: Int, value: Int, mask: Int = -1, waitResponse: Boolean = true) {
+        val payload = le32(address) + le32(value) + le32(mask) + le32(0)
+        if (waitResponse) command(ESP_WRITE_REG, payload, 3000)
+        else {
+            val packet = byteArrayOf(0x00, ESP_WRITE_REG.toByte()) + le16(payload.size) + le32(0) + payload
+            device.write(slipEncode(packet), 1000)
         }
     }
 
