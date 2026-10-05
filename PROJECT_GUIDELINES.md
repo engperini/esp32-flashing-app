@@ -72,7 +72,8 @@ Errors remain categorized as build, USB permission/device loss, bootloader, flas
 3. Build the bundled reference firmware and collect official ESP-IDF flash artifacts.
 4. Implement exclusive Android flash transport handoff from Serial Monitor.
 5. Validate deterministic post-flash reset and automatic monitor recovery.
-6. Harden interruption/reconnect/background behavior.
+6. Move provisioning, Build and Flash execution out of Activity lifecycle into durable foreground execution with visible Android progress notification; UI observes operation state.
+7. Harden interruption/reconnect behavior.
 
 ## MVP acceptance
 
@@ -81,3 +82,5 @@ On a clean compatible Android device:
 **install APK -> select ESP32-S3 -> automatic preparation -> edit main.c -> Build & Flash -> firmware starts -> serial output appears**
 
 No external terminal or manually configured build environment.
+
+Provisioning, Build and Flash must continue safely when the app UI goes to the background. They must not depend on an Activity `lifecycleScope`; long-running operations require foreground execution with a user-visible Android notification.
