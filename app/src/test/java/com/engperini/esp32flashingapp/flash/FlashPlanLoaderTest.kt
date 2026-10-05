@@ -2,8 +2,8 @@ package com.engperini.esp32flashingapp.flash
 
 import java.io.File
 import kotlin.io.path.createTempDirectory
-import kotlin.test.Test
-import kotlin.test.assertEquals
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
 class FlashPlanLoaderTest {
     @Test fun parsesOfficialEspIdf55FlasherArgsStructure() {
