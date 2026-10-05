@@ -65,7 +65,7 @@ class MainActivity:ComponentActivity(){
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}}){Text("Bootloader")}
      Button(enabled=device.isConnected(),onClick={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(OperationState.RESET_ERROR,it.message?:"Reset failed")}}}){Text("Reset")}
     }
-    HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={configureIdf()}){Text("Configure ESP-IDF")};OutlinedButton(onClick={runDoctor()}){Text("Doctor")}}
+    HorizontalDivider();Text("Editor • main/main.c",style=MaterialTheme.typography.titleMedium);OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.fillMaxWidth().height(220.dp),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("ESP-IDF source")});Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={projects.saveMain(source);AppState.operation(OperationState.IDLE,"main.c saved")}){Text("Save")};Button(onClick={configureIdf()}){Text("Configure ESP-IDF")};OutlinedButton(onClick={runDoctor()}){Text("Doctor")};OutlinedButton(onClick={runFullClean()}){Text("Full Clean")}}
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={startBuild(source)}){Text("Build")};Button(enabled=device.isConnected(),onClick={startFlash()}){Text("Flash")};Button(enabled=device.isConnected(),onClick={startBuildAndFlash(source)}){Text("Build & Flash")}};HorizontalDivider();Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Serial Monitor • 115200 • RX ${state.rxBytes} bytes");TextButton(onClick={AppState.clearSerial()}){Text("Clear")}};Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically){Checkbox(checked=serialAutoScroll,onCheckedChange={serialAutoScroll=it});Text("Auto-scroll")};Surface(Modifier.fillMaxWidth().height(280.dp),tonalElevation=2.dp){Text(if(state.serialText.isEmpty())"Waiting for serial data…" else state.serialText,Modifier.padding(10.dp).verticalScroll(serialScroll),fontFamily=FontFamily.Monospace,style=MaterialTheme.typography.bodySmall)}
    }}
   }}
@@ -74,6 +74,8 @@ class MainActivity:ComponentActivity(){
  private fun configureIdf(){ IdfOperationService.setup(applicationContext) }
 
  private fun runDoctor(){ IdfOperationService.doctor(applicationContext) }
+
+ private fun runFullClean(){ IdfOperationService.fullClean(applicationContext) }
 
  private fun startBuild(source:String){
   projects.saveMain(source)
