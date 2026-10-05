@@ -57,7 +57,7 @@ class MainActivity:ComponentActivity(){
    var serialAutoScroll by remember { mutableStateOf(true) }
    val serialScroll = rememberScrollState()
    LaunchedEffect(state.serialText, serialAutoScroll) { if(serialAutoScroll) serialScroll.animateScrollTo(serialScroll.maxValue) }
-   Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+   Scaffold{padding->Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("ESP32 Flashing App",style=MaterialTheme.typography.headlineMedium)
     Text(state.deviceLabel);Text("ESP-IDF 5.5 • Target: esp32s3");Text("State: "+state.operation.name);Text(state.detail)
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={device.connect()}){Text("Connect USB")};OutlinedButton(onClick={device.disconnect()}){Text("Disconnect")}}
