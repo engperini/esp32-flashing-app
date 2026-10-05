@@ -8,6 +8,7 @@ import androidx.core.app.NotificationCompat
 import com.engperini.esp32flashingapp.core.AppState
 import com.engperini.esp32flashingapp.core.OperationState
 import com.engperini.esp32flashingapp.project.ProjectManager
+import com.engperini.esp32flashingapp.flash.FlashPlanLoader
 import kotlinx.coroutines.*
 
 class IdfOperationService : Service() {
@@ -65,6 +66,7 @@ class IdfOperationService : Service() {
         update("Building ESP32-S3 firmware…")
         runCatching { IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir, target) { BuildState.output(it) } }
             .onSuccess {
+                FlashPlanLoader.promoteLastGood(projects.projectDir)
                 BuildState.success(it)
                 AppState.operation(OperationState.BUILD_SUCCESS, "Firmware built successfully")
                 update("Build completed")
