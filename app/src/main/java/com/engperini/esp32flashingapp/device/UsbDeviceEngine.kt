@@ -36,6 +36,16 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  fun disconnect(){monitorJob?.cancel();monitorJob=null;runCatching{port?.close()};runCatching{connection?.close()};port=null;connection=null;AppState.device("No ESP32 connected")}
  suspend fun enterBootloader(){requirePort();AppState.operation(OperationState.ENTERING_BOOTLOADER,"Asserting BOOT + RESET");setBootReset(true,true);delay(config.resetPulseMs);setBootReset(true,false);delay(config.bootloaderHoldMs);setBootReset(false,false);AppState.operation(OperationState.BOOTLOADER_READY,"Bootloader ready")}
  suspend fun resetToApplication(){requirePort();AppState.operation(OperationState.RESETTING,"Resetting ESP32");setBootReset(false,true);delay(config.resetPulseMs);setBootReset(false,false);AppState.operation(OperationState.WAITING_APPLICATION,"Waiting for application serial")}
+ fun startSerialMonitor(){
+  if(port==null){AppState.operation(OperationState.WAITING_DEVICE,"Connect USB before starting Serial Monitor");return}
+  transportOwned=false
+  startMonitor()
+  AppState.operation(OperationState.MONITORING,"Serial monitor started")
+ }
+ fun stopSerialMonitor(){
+  monitorJob?.cancel();monitorJob=null
+  AppState.operation(OperationState.IDLE,"Serial monitor stopped")
+ }
  fun acquireTransport(){monitorJob?.cancel();monitorJob=null;transportOwned=true}
  fun releaseTransport(){transportOwned=false;startMonitor()}
  fun write(data:ByteArray,timeoutMs:Int=1000):Int{requirePort().write(data,timeoutMs);txBytes+=data.size;AppState.counters(rxBytes,txBytes);return data.size}
