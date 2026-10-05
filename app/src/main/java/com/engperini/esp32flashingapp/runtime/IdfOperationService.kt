@@ -75,7 +75,6 @@ class IdfOperationService : Service() {
         runCatching { IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir, target) { BuildState.output(it) } }
             .onSuccess {
                 FlashPlanLoader.promoteLastGood(projects.projectDir)
-                FlashPlanLoader.promoteLastGood(projects.projectDir)
                 BuildState.success(it)
                 AppState.operation(OperationState.BUILD_SUCCESS, "Firmware built successfully • last-good artifacts saved")
                 update(if (requestFlash) "Build completed — reopen app to start Flash" else "Build completed")
