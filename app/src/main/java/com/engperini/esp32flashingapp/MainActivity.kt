@@ -35,16 +35,26 @@ import kotlinx.coroutines.launch
 class MainActivity:ComponentActivity(){
  private lateinit var device:UsbDeviceEngine
  private lateinit var projects:ProjectManager
- private val usbPermissionReceiver=object:BroadcastReceiver(){
+ private val usbReceiver=object:BroadcastReceiver(){
   override fun onReceive(context:Context,intent:Intent){
-   if(intent.action==UsbDeviceEngine.ACTION_USB_PERMISSION) device.onPermissionResult(intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED,false))
+   when(intent.action){
+    UsbDeviceEngine.ACTION_USB_PERMISSION -> device.onPermissionResult(intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED,false))
+    UsbManager.ACTION_USB_DEVICE_ATTACHED -> device.connect()
+    UsbManager.ACTION_USB_DEVICE_DETACHED -> device.disconnect()
+   }
   }
  }
  override fun onCreate(savedInstanceState:Bundle?){
   super.onCreate(savedInstanceState)
   device=UsbDeviceEngine(applicationContext)
   projects=ProjectManager(applicationContext);projects.ensureExampleProject()
-  ContextCompat.registerReceiver(this,usbPermissionReceiver,IntentFilter(UsbDeviceEngine.ACTION_USB_PERMISSION),ContextCompat.RECEIVER_NOT_EXPORTED)
+  val usbFilter=IntentFilter().apply {
+   addAction(UsbDeviceEngine.ACTION_USB_PERMISSION)
+   addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+   addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+  }
+  ContextCompat.registerReceiver(this,usbReceiver,usbFilter,ContextCompat.RECEIVER_NOT_EXPORTED)
+  if(device.hasDevice()) device.connect()
   setContent{MaterialTheme{
    val state by AppState.state.collectAsStateWithLifecycle()
    val setup by SetupState.state.collectAsStateWithLifecycle()
@@ -128,5 +138,5 @@ class MainActivity:ComponentActivity(){
   projects.saveMain(source)
   IdfOperationService.buildAndFlash(applicationContext)
  }
- override fun onDestroy(){runCatching{unregisterReceiver(usbPermissionReceiver)};device.disconnect();super.onDestroy()}
+ override fun onDestroy(){runCatching{unregisterReceiver(usbReceiver)};device.disconnect();super.onDestroy()}
 }
