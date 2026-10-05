@@ -92,43 +92,17 @@ class IdfBuildExecutor(private val context: Context) {
     }
 
     suspend fun buildPrepared(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
-        requireTarget(target)
-        require(project.isDirectory) { "Project directory not found: " + project }
-        val rootfs = requireRuntimeReady()
-        IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: " + it.name } }
-
+        require(project.isDirectory) { "Project directory not found: $project" }
+        val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
+        IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: ${it.name}" } }
         val launcher = ProotLauncher(host)
         val cli = prepareLauncher()
+        val guestProject = project.absolutePath
         val success = "__APP_IDF_BUILD_OK__"
-        val exitPrefix = "__APP_IDF_BUILD_EXIT__"
-        val qTarget = shQuote(target)
-        val guestProject = "/workspace/project"
-
-        // Keep ESP-IDF's native incremental CMake/Ninja/ccache behavior.
-        // Never call set-target here: ESP-IDF 5.5 documents that it performs a fullclean.
-        val command = "export IDF_TOOLS_PATH=" + shQuote(IdfRuntimePlan.IDF_TOOLS_PATH) +
-            " IDF_PATH=" + shQuote(IdfRuntimePlan.IDF_PATH) +
-            " IDF_CCACHE_ENABLE=1 && " +
-            "cd " + shQuote(IdfRuntimePlan.IDF_PATH) + " && . ./export.sh >/dev/null && " +
-            "cd " + shQuote(guestProject) + " || { echo \"ERROR: Project workspace is not accessible inside Linux runtime.\"; exit 66; }; " +
-            "if [ -f sdkconfig ]; then " +
-            "configured=\$(sed -n 's/^CONFIG_IDF_TARGET=\"\\([^\"]*\\)\"/\\1/p' sdkconfig | head -n 1); " +
-            "if [ -n \"\$configured\" ] && [ \"\$configured\" != " + qTarget + " ]; then " +
-            "echo \"ERROR: Project target is \$configured, expected " + target + ". Target change must be explicit.\"; exit 64; fi; " +
-            "else export IDF_TARGET=" + qTarget + "; fi; " +
-            "idf.py build; rc=\$?; echo " + exitPrefix + "\$rc; " +
-            "if [ \$rc -eq 0 ]; then echo " + success + "; fi; exit \$rc"
-        executeStage(launcher, cli, command, success, onOutput, "Build", listOf(project.canonicalPath + ":" + guestProject))
-    }
-
-    private fun requireRuntimeReady(): File {
-        val rootfs = File(host.prefixDir, "var/lib/pr/containers/" + IdfRuntimePlan.GUEST_ALIAS + "/rootfs")
-        require(File(rootfs, "etc/os-release").exists()) { "Debian runtime is not installed" }
-        return rootfs
-    }
-
-    private fun requireTarget(target: String) {
-        require(target.matches(Regex("[a-z0-9]+"))) { "Invalid ESP target" }
+        val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' && " +
+            "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh >/dev/null && " +
+            "cd '$guestProject' && idf.py set-target '$target' >/dev/null && idf.py build && echo $success"
+        executeStage(launcher, cli, command, success, onOutput, "Build")
     }
 
     private fun prepareLauncher(): File {
