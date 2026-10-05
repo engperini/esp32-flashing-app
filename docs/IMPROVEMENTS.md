@@ -2,6 +2,14 @@
 
 Only current, actionable improvements are kept here. Validated architecture and product decisions remain in `PROJECT_GUIDELINES.md`.
 
+## Background execution — MVP requirement
+
+- Provisioning, Build and Flash must survive the app UI being sent to the background.
+- Do not run long operations in an Activity `lifecycleScope`.
+- Move long-running work to a foreground service/durable application-scoped operation engine with a user-visible Android progress notification.
+- Reopening the app must reattach the UI to the active operation and its current log/progress rather than starting it again.
+- Define safe cancellation and recovery semantics for interrupted operations.
+
 ## Build and ESP-IDF runtime
 
 - Reduce Build startup latency caused by running the full ESP-IDF `export.sh` discovery on every build. Provision the environment once and reuse the required `IDF_PATH`, `IDF_TOOLS_PATH`, PATH and Python environment safely.
