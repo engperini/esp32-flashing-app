@@ -120,14 +120,11 @@ class MainActivity:ComponentActivity(){
  private fun startBuildAndSync(source:String){
   projects.saveMain(source)
   lifecycleScope.launch {
-   BuildState.open()
-   AppState.operation(OperationState.BUILDING,"Building before flash…")
+   FlashState.open()
+   AppState.operation(OperationState.PREPARING_BUILD,"Validating existing firmware artifacts…")
    runCatching {
-    IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
-    BuildState.close()
-    FlashState.open()
     val plan=FlashPlanLoader.load(projects.projectDir)
-    FlashState.status("Build completed. Validated ${plan.images.size} flash images at ${plan.baudRate} baud.")
+    FlashState.status("Using existing build: ${plan.images.size} validated flash images at ${plan.baudRate} baud.")
     FlashState.status("Taking exclusive USB ownership…")
     device.acquireTransport()
     try {
@@ -143,7 +140,7 @@ class MainActivity:ComponentActivity(){
     }
    }.onFailure {
     val message=it.message?:"Build & Flash preparation failed"
-    if(FlashState.state.value.visible) FlashState.error(message) else BuildState.error(message)
+    FlashState.error(message)
     AppState.operation(OperationState.BUILD_ERROR,"Build & Flash stopped — see details")
    }
   }
