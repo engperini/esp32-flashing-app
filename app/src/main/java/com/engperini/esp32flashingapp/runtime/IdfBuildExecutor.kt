@@ -86,6 +86,7 @@ class IdfBuildExecutor(private val context: Context) {
         val success = "__APP_IDF_BUILD_OK__"
         val exitPrefix = "__APP_IDF_BUILD_EXIT__"
         val qTarget = shQuote(target)
+        val guestProject = "/workspace/project"
 
         // Keep ESP-IDF's native incremental CMake/Ninja/ccache behavior.
         // Never call set-target here: ESP-IDF 5.5 documents that it performs a fullclean.
@@ -93,7 +94,7 @@ class IdfBuildExecutor(private val context: Context) {
             " IDF_PATH=" + shQuote(IdfRuntimePlan.IDF_PATH) +
             " IDF_CCACHE_ENABLE=1 && " +
             "cd " + shQuote(IdfRuntimePlan.IDF_PATH) + " && . ./export.sh >/dev/null && " +
-            "cd " + shQuote(project.canonicalPath) + " && " +
+            "cd " + shQuote(guestProject) + " || { echo \"ERROR: Project workspace is not accessible inside Linux runtime.\"; exit 66; }; " +
             "if [ -f sdkconfig ]; then " +
             "configured=\$(sed -n 's/^CONFIG_IDF_TARGET=\"\\([^\"]*\\)\"/\\1/p' sdkconfig | head -n 1); " +
             "if [ -n \"\$configured\" ] && [ \"\$configured\" != " + qTarget + " ]; then " +
@@ -101,7 +102,7 @@ class IdfBuildExecutor(private val context: Context) {
             "else export IDF_TARGET=" + qTarget + "; fi; " +
             "idf.py build; rc=\$?; echo " + exitPrefix + "\$rc; " +
             "if [ \$rc -eq 0 ]; then echo " + success + "; fi; exit \$rc"
-        executeStage(launcher, cli, command, success, onOutput, "Build")
+        executeStage(launcher, cli, command, success, onOutput, "Build", listOf(project.canonicalPath + ":" + guestProject))
     }
 
     private fun requireRuntimeReady(): File {
@@ -129,8 +130,15 @@ class IdfBuildExecutor(private val context: Context) {
         return File(nativeDir, "libpr-cli.so")
     }
 
-    private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String, onOutput: (String) -> Unit = {}, operation: String = "Provisioning stage"): String {
-        val session = launcher.startCustomSession(listOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS, "--", command))
+    private fun executeStage(launcher: ProotLauncher, cli: File, command: String, success: String, onOutput: (String) -> Unit = {}, operation: String = "Provisioning stage", customBinds: List<String> = emptyList()): String {
+        val loginArgs = mutableListOf(cli.absolutePath, "login", IdfRuntimePlan.GUEST_ALIAS)
+        customBinds.forEach { bind ->
+            loginArgs += "--custom-bind"
+            loginArgs += bind
+        }
+        loginArgs += "--"
+        loginArgs += command
+        val session = launcher.startCustomSession(loginArgs)
             ?: error("Unable to start " + operation)
         val output = TailBuffer(LOG_TAIL_CHARS)
         val buffer = ByteArray(8192)
