@@ -18,11 +18,13 @@ class IdfOperationService : Service() {
         private const val ACTION_BUILD = "build"
         private const val ACTION_SETUP = "setup"
         private const val ACTION_DOCTOR = "doctor"
+        private const val ACTION_BUILD_FLASH = "build_flash"
         private const val EXTRA_TARGET = "target"
 
         fun build(context: Context, target: String = "esp32s3") = start(context, ACTION_BUILD, target)
         fun setup(context: Context, target: String = "esp32s3") = start(context, ACTION_SETUP, target)
         fun doctor(context: Context, target: String = "esp32s3") = start(context, ACTION_DOCTOR, target)
+        fun buildAndFlash(context: Context, target: String = "esp32s3") = start(context, ACTION_BUILD_FLASH, target)
         private fun start(context: Context, action: String, target: String) {
             val i = Intent(context, IdfOperationService::class.java).setAction(action).putExtra(EXTRA_TARGET, target)
             androidx.core.content.ContextCompat.startForegroundService(context, i)
@@ -49,6 +51,7 @@ class IdfOperationService : Service() {
                     ACTION_BUILD -> runBuild(target)
                     ACTION_SETUP -> runSetup(target)
                     ACTION_DOCTOR -> runDoctor(target)
+                    ACTION_BUILD_FLASH -> runBuild(target, requestFlash = true)
                 }
             } finally {
                 running = false
@@ -59,7 +62,7 @@ class IdfOperationService : Service() {
         return START_NOT_STICKY
     }
 
-    private suspend fun runBuild(target: String) {
+    private suspend fun runBuild(target: String, requestFlash: Boolean = false) {
         val projects = ProjectManager(applicationContext)
         BuildState.open()
         AppState.operation(OperationState.BUILDING, "Building ESP32-S3 firmware…")
@@ -69,7 +72,8 @@ class IdfOperationService : Service() {
                 FlashPlanLoader.promoteLastGood(projects.projectDir)
                 BuildState.success(it)
                 AppState.operation(OperationState.BUILD_SUCCESS, "Firmware built successfully")
-                update("Build completed")
+                update(if (requestFlash) "Build completed — reopen app to start Flash" else "Build completed")
+                if (requestFlash) AppState.operation(OperationState.BUILD_SUCCESS, "Build completed — tap Flash to continue safely")
             }.onFailure {
                 val message = it.message ?: "Build failed"
                 BuildState.error(message)
