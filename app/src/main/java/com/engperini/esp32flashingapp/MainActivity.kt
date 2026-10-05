@@ -109,9 +109,13 @@ class MainActivity:ComponentActivity(){
      device.enterBootloader()
      FlashState.status("Synchronizing at 115200 baud…")
      AppState.operation(OperationState.BOOTLOADER_READY,"Synchronizing with ESP32-S3 ROM…")
-     check(EspRomTransport(device).sync()){"ESP32-S3 ROM did not answer SYNC"}
-     FlashState.success("ESP32-S3 ROM SYNC successful — transport ready")
-     AppState.operation(OperationState.BOOTLOADER_READY,"ESP32-S3 ROM SYNC successful — flash transport ready")
+     val transport=EspRomTransport(device)
+     check(transport.sync()){"ESP32-S3 ROM did not answer SYNC"}
+     FlashState.status("ESP32-S3 ROM SYNC successful.")
+     transport.flash(plan){ FlashState.status(it) }
+     FlashState.success("Flash completed and verified — resetting ESP32-S3…")
+     device.resetToApplication()
+     AppState.operation(OperationState.WAITING_APPLICATION,"Firmware flashed and verified; waiting for application serial")
     } finally {
      device.releaseTransport()
     }
