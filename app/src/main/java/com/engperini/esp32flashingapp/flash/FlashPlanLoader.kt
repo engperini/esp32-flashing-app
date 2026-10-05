@@ -5,7 +5,36 @@ import java.io.File
 
 object FlashPlanLoader {
     fun load(projectDir: File, baudRate: Int = 115200): FlashPlan {
-        val buildDir = File(projectDir, "build").canonicalFile
+        val lastGood = File(projectDir, ".last-good-flash")
+        val buildDir = (if (lastGood.isDirectory) lastGood else File(projectDir, "build")).canonicalFile
+        require(buildDir.isDirectory) { "Build directory not found" }
+        val configFile = File(buildDir, "flasher_args.json")
+        require(configFile.isFile) { "ESP-IDF flasher_args.json not found" }
+        return parse(buildDir, configFile.readText(), baudRate)
+    }
+
+    fun promoteLastGood(projectDir: File) {
+        val source = File(projectDir, "build").canonicalFile
+        val plan = loadFromBuild(source)
+        val destination = File(projectDir, ".last-good-flash")
+        val staging = File(projectDir, ".last-good-flash.tmp")
+        staging.deleteRecursively(); staging.mkdirs()
+        val root = JSONObject(File(source, "flasher_args.json").readText())
+        File(staging, "flasher_args.json").writeText(root.toString(2))
+        val flashFiles = root.getJSONObject("flash_files")
+        flashFiles.keys().forEach { address ->
+            val relative = flashFiles.getString(address)
+            val src = File(source, relative).canonicalFile
+            val dst = File(staging, relative)
+            dst.parentFile?.mkdirs(); src.copyTo(dst, overwrite = true)
+        }
+        // Validate the complete staged set before replacing the previous known-good set.
+        parse(staging.canonicalFile, File(staging, "flasher_args.json").readText(), plan.baudRate)
+        destination.deleteRecursively()
+        require(staging.renameTo(destination)) { "Unable to promote last valid firmware artifacts" }
+    }
+
+    private fun loadFromBuild(buildDir: File, baudRate: Int = 115200): FlashPlan {
         require(buildDir.isDirectory) { "Build directory not found" }
         val configFile = File(buildDir, "flasher_args.json")
         require(configFile.isFile) { "ESP-IDF flasher_args.json not found" }
