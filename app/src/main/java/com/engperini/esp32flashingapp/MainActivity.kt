@@ -70,8 +70,8 @@ class MainActivity:ComponentActivity(){
     Text("Serial Monitor",style=MaterialTheme.typography.titleMedium)
     Text("115200 baud • RX ${state.rxBytes} bytes",style=MaterialTheme.typography.bodyMedium)
     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-     Button(modifier=Modifier.weight(1f),enabled=device.isConnected(),onClick={device.startSerialMonitor()}){Text("Start Monitor")}
-     OutlinedButton(modifier=Modifier.weight(1f),enabled=device.isConnected(),onClick={device.stopSerialMonitor()}){Text("Stop Monitor")}
+     Button(modifier=Modifier.weight(1f),enabled=device.isConnected() && state.operation!=OperationState.MONITORING,onClick={device.startSerialMonitor()}){Text("Start Monitor")}
+     OutlinedButton(modifier=Modifier.weight(1f),enabled=device.isConnected() && state.operation==OperationState.MONITORING,onClick={device.stopSerialMonitor()}){Text("Stop Monitor")}
     }
     Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){
      Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically){Checkbox(checked=serialAutoScroll,onCheckedChange={serialAutoScroll=it});Text("Auto-scroll")}
