@@ -19,12 +19,14 @@ class IdfOperationService : Service() {
         private const val ACTION_BUILD = "build"
         private const val ACTION_SETUP = "setup"
         private const val ACTION_DOCTOR = "doctor"
+        private const val ACTION_FULL_CLEAN = "full_clean"
         private const val ACTION_BUILD_FLASH = "build_flash"
         private const val EXTRA_TARGET = "target"
 
         fun build(context: Context, target: String = "esp32s3") = start(context, ACTION_BUILD, target)
         fun setup(context: Context, target: String = "esp32s3") = start(context, ACTION_SETUP, target)
         fun doctor(context: Context, target: String = "esp32s3") = start(context, ACTION_DOCTOR, target)
+        fun fullClean(context: Context, target: String = "esp32s3") = start(context, ACTION_FULL_CLEAN, target)
         fun buildAndFlash(context: Context, target: String = "esp32s3") = start(context, ACTION_BUILD_FLASH, target)
         private fun start(context: Context, action: String, target: String) {
             val i = Intent(context, IdfOperationService::class.java).setAction(action).putExtra(EXTRA_TARGET, target)
@@ -56,6 +58,7 @@ class IdfOperationService : Service() {
                     ACTION_BUILD -> runBuild(target)
                     ACTION_SETUP -> runSetup(target)
                     ACTION_DOCTOR -> runDoctor(target)
+                    ACTION_FULL_CLEAN -> runFullClean(target)
                     ACTION_BUILD_FLASH -> runBuild(target, requestFlash = true)
                 }
             } finally {
@@ -85,6 +88,16 @@ class IdfOperationService : Service() {
                 AppState.operation(OperationState.BUILD_ERROR, "Build failed — see Build details")
                 update("Build failed")
             }
+    }
+
+    private suspend fun runFullClean(target: String) {
+        val projects = ProjectManager(applicationContext)
+        BuildState.open()
+        AppState.operation(OperationState.PREPARING_BUILD, "Cleaning ESP-IDF build cache…")
+        update("Running ESP-IDF Full Clean…")
+        runCatching { IdfBuildExecutor(applicationContext).fullClean(projects.projectDir, target) { BuildState.output(it) } }
+            .onSuccess { BuildState.success(it); AppState.operation(OperationState.IDLE, "Full Clean completed — project ready for a fresh Build"); update("Full Clean completed") }
+            .onFailure { val message = it.message ?: "Full Clean failed"; BuildState.error(message); AppState.operation(OperationState.BUILD_ERROR, "Full Clean failed — see details"); update("Full Clean failed") }
     }
 
     private suspend fun runSetup(target: String) {
