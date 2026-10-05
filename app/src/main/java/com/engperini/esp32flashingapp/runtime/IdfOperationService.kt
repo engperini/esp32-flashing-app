@@ -10,7 +10,6 @@ import androidx.core.app.NotificationCompat
 import com.engperini.esp32flashingapp.core.AppState
 import com.engperini.esp32flashingapp.core.OperationState
 import com.engperini.esp32flashingapp.project.ProjectManager
-import com.engperini.esp32flashingapp.flash.FlashPlanLoader
 import kotlinx.coroutines.*
 
 class IdfOperationService : Service() {
