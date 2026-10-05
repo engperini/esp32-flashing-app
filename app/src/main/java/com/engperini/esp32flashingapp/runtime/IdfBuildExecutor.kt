@@ -12,7 +12,6 @@ class IdfBuildExecutor(private val context: Context) {
     companion object {
         private const val LOG_TAIL_CHARS = 65536
         private const val UI_TAIL_CHARS = 8192
-        private const val BUILD_JOBS = 2
     }
 
     private val host = object : ProotHost {
@@ -92,7 +91,7 @@ class IdfBuildExecutor(private val context: Context) {
         // Never call set-target here: ESP-IDF 5.5 documents that it performs a fullclean.
         val command = "export IDF_TOOLS_PATH=" + shQuote(IdfRuntimePlan.IDF_TOOLS_PATH) +
             " IDF_PATH=" + shQuote(IdfRuntimePlan.IDF_PATH) +
-            " IDF_CCACHE_ENABLE=1 IDF_PY_BUILD_JOBS=" + BUILD_JOBS + " && " +
+            " IDF_CCACHE_ENABLE=1 && " +
             "cd " + shQuote(IdfRuntimePlan.IDF_PATH) + " && . ./export.sh >/dev/null && " +
             "cd " + shQuote(project.canonicalPath) + " && " +
             "if [ -f sdkconfig ]; then " +
@@ -100,7 +99,7 @@ class IdfBuildExecutor(private val context: Context) {
             "if [ -n \"\$configured\" ] && [ \"\$configured\" != " + qTarget + " ]; then " +
             "echo \"ERROR: Project target is \$configured, expected " + target + ". Target change must be explicit.\"; exit 64; fi; " +
             "else export IDF_TARGET=" + qTarget + "; fi; " +
-            "idf.py -j " + BUILD_JOBS + " build; rc=\$?; echo " + exitPrefix + "\$rc; " +
+            "idf.py build; rc=\$?; echo " + exitPrefix + "\$rc; " +
             "if [ \$rc -eq 0 ]; then echo " + success + "; fi; exit \$rc"
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
