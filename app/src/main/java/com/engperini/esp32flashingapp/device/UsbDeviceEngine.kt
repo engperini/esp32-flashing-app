@@ -57,7 +57,12 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
   monitorJob?.cancel();monitorJob=null
   AppState.operation(OperationState.IDLE,"Serial monitor stopped")
  }
- fun acquireTransport(){monitorJob?.cancel();monitorJob=null;transportOwned=true}
+ suspend fun acquireTransport(){
+  transportOwned=true
+  val job=monitorJob
+  monitorJob=null
+  job?.cancelAndJoin()
+ }
  fun releaseTransport(){transportOwned=false;startMonitor()}
  fun write(data:ByteArray,timeoutMs:Int=1000):Int{requirePort().write(data,timeoutMs);txBytes+=data.size;AppState.counters(rxBytes,txBytes);return data.size}
  private fun startMonitor(){monitorJob?.cancel();monitorJob=scope.launch{val buffer=ByteArray(4096);while(isActive&&port!=null&&!transportOwned){try{val n=read(buffer,250);if(n>0){rxBytes+=n;AppState.counters(rxBytes,txBytes);AppState.serial(buffer.copyOf(n).toString(Charsets.UTF_8));AppState.operation(OperationState.MONITORING,"Serial active")}}catch(e:IOException){if(isActive){handleDeviceLoss(e)};break}}}}
