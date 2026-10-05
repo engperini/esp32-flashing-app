@@ -79,7 +79,21 @@ class MainActivity:ComponentActivity(){
 
  private fun startBuild(source:String){
   projects.saveMain(source)
-  IdfOperationService.build(applicationContext)
+  lifecycleScope.launch {
+   BuildState.open()
+   AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware…")
+   runCatching {
+    IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
+   }.onSuccess { output ->
+    runCatching { FlashPlanLoader.promoteLastGood(projects.projectDir) }
+    BuildState.success(output)
+    AppState.operation(OperationState.BUILD_SUCCESS,"Firmware built successfully")
+   }.onFailure {
+    val message=it.message?:"Build failed"
+    BuildState.error(message)
+    AppState.operation(OperationState.BUILD_ERROR,"Build failed — see Build details")
+   }
+  }
  }
  private fun startFlash(){
   lifecycleScope.launch {
