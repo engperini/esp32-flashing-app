@@ -45,9 +45,9 @@ Provisioning stages are persistent and resumable. A stage is marked complete onl
 ## Validated device behavior
 
 - Android USB serial connection to XIAO ESP32-S3 works.
-- Native serial monitoring works.
+- Native serial monitoring works at 115200 baud.\n- Native Android flash writes the ESP-IDF images and verifies the application image by MD5.\n- Reference firmware physically boots after native flash; GPIO21 built-in LED blinks once per second and serial heartbeat output is received once the application USB interface is opened.
 - Android DTR/RTS bootloader sequence successfully enters ESP32-S3 ROM download mode.
-- Deterministic reset back to the application still requires final validation.
+- Reset reaches the application, but post-flash USB re-enumeration currently requires lifecycle hardening: the app must automatically close the ROM-era port and reopen the application USB interface. Physical cable reconnect is the validated workaround; eliminating it is the active TODO.
 
 The Device Engine owns reset/boot electrical control. Build Engine does not own USB.
 
