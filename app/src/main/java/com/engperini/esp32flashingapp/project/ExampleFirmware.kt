@@ -9,9 +9,9 @@ object ExampleFirmware {
 #include "esp_flash.h"
 #include "esp_system.h"
 #include "esp_idf_version.h"
-#include "driver/temperature_sensor.h"
+#include "driver/temperature_sensor.h"\n#include "driver/gpio.h"
 
-void app_main(void) {
+void app_main(void) {\n    const gpio_num_t led_gpio = GPIO_NUM_21;\n    gpio_reset_pin(led_gpio);\n    gpio_set_direction(led_gpio, GPIO_MODE_OUTPUT);\n    gpio_set_level(led_gpio, 0);
     esp_chip_info_t chip;
     uint32_t flash_size = 0;
     esp_chip_info(&chip);
