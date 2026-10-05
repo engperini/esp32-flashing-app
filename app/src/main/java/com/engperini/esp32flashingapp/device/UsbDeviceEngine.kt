@@ -36,6 +36,7 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  fun disconnect(){monitorJob?.cancel();monitorJob=null;runCatching{port?.close()};runCatching{connection?.close()};port=null;connection=null;AppState.device("No ESP32 connected")}
  suspend fun enterBootloader(){requirePort();AppState.operation(OperationState.ENTERING_BOOTLOADER,"Asserting BOOT + RESET");setBootReset(true,true);delay(config.resetPulseMs);setBootReset(true,false);delay(config.bootloaderHoldMs);setBootReset(false,false);AppState.operation(OperationState.BOOTLOADER_READY,"Bootloader ready")}
  suspend fun resetToApplication(){requirePort();AppState.operation(OperationState.RESETTING,"Resetting ESP32");setBootReset(false,true);delay(config.resetPulseMs);setBootReset(false,false);AppState.operation(OperationState.WAITING_APPLICATION,"Waiting for application serial")}
+ suspend fun reconnectApplication(timeoutMs:Long=6000):Boolean{\n  AppState.operation(OperationState.WAITING_APPLICATION,"Reconnecting USB after application reset…")\n  disconnect()\n  val deadline=System.currentTimeMillis()+timeoutMs\n  while(System.currentTimeMillis()<deadline){\n   if(hasDevice()&&connect())return true\n   delay(250)\n  }\n  AppState.operation(OperationState.WAITING_DEVICE,"Application USB did not reconnect automatically; reconnect cable or tap Connect USB")\n  return false\n }
  fun startSerialMonitor(){
   if(port==null){AppState.operation(OperationState.WAITING_DEVICE,"Connect USB before starting Serial Monitor");return}
   transportOwned=false
