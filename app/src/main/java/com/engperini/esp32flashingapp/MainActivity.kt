@@ -108,21 +108,7 @@ class MainActivity:ComponentActivity(){
  }
  private fun startBuildAndFlash(source:String){
   projects.saveMain(source)
-  lifecycleScope.launch {
-   BuildState.open()
-   AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware before flash…")
-   runCatching {
-    IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
-   }.onSuccess {
-    BuildState.success(it)
-    BuildState.close()
-    startFlash()
-   }.onFailure {
-    val message=it.message?:"Build failed"
-    BuildState.error(message)
-    AppState.operation(OperationState.BUILD_ERROR,"Build failed — flash not started")
-   }
-  }
+  IdfOperationService.buildAndFlash(applicationContext)
  }
  override fun onDestroy(){runCatching{unregisterReceiver(usbPermissionReceiver)};device.disconnect();super.onDestroy()}
 }
