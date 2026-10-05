@@ -43,9 +43,23 @@ Validated on a physical Android phone:
 
 Native Android flashing is currently under active development and physical validation. Do not treat the project as a finished production flasher yet.
 
+## Requirements
+
+- **Android:** ARM64 (arm64-v8a); Android 16 is the currently validated reference platform. Broader Android-version compatibility will be declared only after physical validation.
+- **Storage:** several GB of free internal storage are required for the managed Debian runtime, ESP-IDF 5.5, target toolchain and project builds. A precise minimum will be published after final packaging measurements; the app will gain a free-space preflight before setup.
+- **Network:** internet access is required for the first ESP-IDF/target setup. Once provisioned, normal builds can run offline.
+- **USB:** Android USB Host/OTG support plus a data-capable USB cable is required for Flash and Serial Monitor. Build itself does not require the board to be connected.
+- **Target:** ESP32-S3 is the current validated target; Seeed Studio XIAO ESP32-S3 is the physical reference board.
+
 ## Download the Android app
 
-Development APKs are produced automatically by GitHub Actions.
+### Final/public distribution
+
+The finished MVP will be published as a versioned **GitHub Release with the APK attached directly to the release**. Normal users will not need to browse GitHub Actions. The Releases page will be the canonical open-source download location.
+
+### Current development builds
+
+Until the first public Release, development APKs are produced automatically by GitHub Actions.
 
 1. Open the repository **Actions** tab.
 2. Open the latest successful CI run on the `main` branch.
@@ -68,7 +82,7 @@ The first ESP-IDF configuration requires an internet connection and significantl
 1. Open the app.
 2. Select the ESP target. The current reference target is **ESP32-S3**.
 3. Tap **Configure ESP-IDF**.
-4. Keep the setup screen open while the app prepares its private Linux environment, ESP-IDF 5.5 and the target toolchain.
+4. Keep the setup screen open while the current development build prepares its private Linux environment, ESP-IDF 5.5 and the target toolchain. Background-safe execution is a required MVP item and is not complete yet.
 5. Follow the live setup status and log until the environment reports ready.
 6. Optionally run **Doctor** to validate the installed toolchain.
 
