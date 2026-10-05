@@ -18,6 +18,9 @@ class ProjectManager(context: Context) {
         File(root, "main/CMakeLists.txt").writeText(
             "idf_component_register(SRCS \"main.c\" INCLUDE_DIRS \".\")\n"
         )
+        val sdkconfigDefaults = File(root, "sdkconfig.defaults")
+        val desiredDefaults = "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n"
+        if (!sdkconfigDefaults.exists() || sdkconfigDefaults.readText() != desiredDefaults) sdkconfigDefaults.writeText(desiredDefaults)
         if (!mainFile.exists()) mainFile.writeText(ExampleFirmware.mainC)
         return root
     }
