@@ -2,6 +2,7 @@ package com.engperini.esp32flashingapp.runtime
 
 import android.content.Context
 import android.system.Os
+import android.os.StatFs
 import id.or.oo.pr.engine.ProotHost
 import id.or.oo.pr.engine.ProotLauncher
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +72,12 @@ class IdfBuildExecutor(private val context: Context) {
 
     suspend fun buildPrepared(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
         require(project.isDirectory) { "Project directory not found: $project" }
+        val stat = StatFs(context.filesDir.absolutePath)
+        val freeBytes = stat.availableBytes
+        val minimumWorkingBytes = 1_000_000_000L
+        require(freeBytes >= minimumWorkingBytes) {
+            "Not enough free storage to start Build: %.2f GB available; at least 1.00 GB working space is required.".format(freeBytes / 1_000_000_000.0)
+        }
         val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
         IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: ${it.name}" } }
         val launcher = ProotLauncher(host)
