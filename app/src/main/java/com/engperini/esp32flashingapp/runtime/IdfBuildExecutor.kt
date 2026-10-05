@@ -105,6 +105,15 @@ class IdfBuildExecutor(private val context: Context) {
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
 
+    private fun requireTarget(target: String) {
+        require(target.matches(Regex("[a-z0-9]+"))) { "Invalid ESP target" }
+    }
+
+    private fun requireRuntimeReady() {
+        val rootfs = File(host.prefixDir, "var/lib/pr/containers/" + IdfRuntimePlan.GUEST_ALIAS + "/rootfs")
+        require(File(rootfs, "etc/os-release").exists()) { "Debian runtime is not installed" }
+    }
+
     private fun prepareLauncher(): File {
         host.prefixDir.mkdirs()
         host.homeDir.mkdirs()
