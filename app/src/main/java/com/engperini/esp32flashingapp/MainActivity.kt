@@ -27,6 +27,7 @@ import com.engperini.esp32flashingapp.flash.EspRomTransport
 import com.engperini.esp32flashingapp.flash.FlashState
 import com.engperini.esp32flashingapp.flash.FlashPlanLoader
 import com.engperini.esp32flashingapp.runtime.IdfBuildExecutor
+import com.engperini.esp32flashingapp.runtime.IdfOperationService
 import com.engperini.esp32flashingapp.runtime.SetupState
 import com.engperini.esp32flashingapp.runtime.BuildState
 import kotlinx.coroutines.launch
@@ -67,55 +68,13 @@ class MainActivity:ComponentActivity(){
   }}
  }
 
- private fun configureIdf(){
-  lifecycleScope.launch {
-   AppState.operation(OperationState.PREPARING_BUILD,"Configuring ESP-IDF 5.5 for ESP32-S3…")
-   SetupState.open()
-   runCatching {
-    IdfBuildExecutor(applicationContext).prepare("esp32s3"){SetupState.progress(it)}
-   }.onSuccess {
-    AppState.operation(OperationState.IDLE,"ESP-IDF 5.5 / esp32s3 ready")
-   }.onFailure {
-    val message=it.message?:"ESP-IDF setup failed"
-    SetupState.error(message)
-    AppState.operation(OperationState.BUILD_ERROR,message)
-   }
-  }
- }
+ private fun configureIdf(){ IdfOperationService.setup(applicationContext) }
 
- private fun runDoctor(){
-  lifecycleScope.launch {
-   BuildState.open()
-   AppState.operation(OperationState.PREPARING_BUILD,"Checking ESP-IDF 5.5 environment…")
-   runCatching {
-    IdfBuildExecutor(applicationContext).doctor("esp32s3"){BuildState.output(it)}
-   }.onSuccess { output ->
-    BuildState.success(output)
-    AppState.operation(OperationState.IDLE,"ESP-IDF environment healthy")
-   }.onFailure {
-    val message=it.message?:"ESP-IDF Doctor failed"
-    BuildState.error(message)
-    AppState.operation(OperationState.BUILD_ERROR,"ESP-IDF repair needed")
-   }
-  }
- }
+ private fun runDoctor(){ IdfOperationService.doctor(applicationContext) }
 
  private fun startBuild(source:String){
   projects.saveMain(source)
-  lifecycleScope.launch {
-   BuildState.open()
-   AppState.operation(OperationState.BUILDING,"Building ESP32-S3 firmware…")
-   runCatching {
-    IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir,"esp32s3"){BuildState.output(it)}
-   }.onSuccess { output ->
-    BuildState.success(output)
-    AppState.operation(OperationState.BUILD_SUCCESS,"Firmware built successfully")
-   }.onFailure {
-    val message=it.message?:"Build failed"
-    BuildState.error(message)
-    AppState.operation(OperationState.BUILD_ERROR,"Build failed — see Build details")
-   }
-  }
+  IdfOperationService.build(applicationContext)
  }
  private fun startFlash(){
   lifecycleScope.launch {
