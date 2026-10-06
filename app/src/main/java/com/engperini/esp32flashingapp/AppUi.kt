@@ -47,7 +47,8 @@ fun MainShell(
     onCreateFolder: (String) -> Unit,
     onConfigure: () -> Unit,
     onDoctor: () -> Unit,
-    onFullClean: () -> Unit
+    onFullClean: () -> Unit,
+    onExportLog: () -> Unit
 ) {
     Scaffold(
         topBar = { TopAppBar(title = { Column { Text("ESP32 Flashing App"); Text(project.name + " • " + SupportedTargets.label(project.target), style = MaterialTheme.typography.labelMedium) } }) },
@@ -62,7 +63,7 @@ fun MainShell(
         when(section) {
             AppSection.HARDWARE -> HardwareScreen(state, project, connected, onTarget, onConnect, onDisconnect, onBootloader, onReset, onBuild, onFlash, onBuildFlash, onStartMonitor, onStopMonitor, onClearSerial, Modifier.padding(padding))
             AppSection.PROJECT -> ProjectScreen(files, selectedFile, editorText, onSelectFile, onEditorText, onSaveFile, saveFeedback, onCreateFile, onCreateFolder, Modifier.padding(padding))
-            AppSection.SETTINGS -> SettingsScreen(project, onConfigure, onDoctor, onFullClean, Modifier.padding(padding))
+            AppSection.SETTINGS -> SettingsScreen(project, onConfigure, onDoctor, onFullClean, onExportLog, Modifier.padding(padding))
         }
     }
 }
@@ -116,9 +117,10 @@ fun MainShell(
     }
 }
 
-@Composable private fun SettingsScreen(project:ProjectConfig,onConfigure:()->Unit,onDoctor:()->Unit,onFullClean:()->Unit,modifier:Modifier){
+@Composable private fun SettingsScreen(project:ProjectConfig,onConfigure:()->Unit,onDoctor:()->Unit,onFullClean:()->Unit,onExportLog:()->Unit,modifier:Modifier){
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         Text("Settings",style=MaterialTheme.typography.headlineSmall)
         Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("ESP-IDF Environment",style=MaterialTheme.typography.titleMedium);Text("ESP-IDF 5.5 • "+SupportedTargets.label(project.target));Button(onClick=onConfigure,modifier=Modifier.fillMaxWidth()){Text("Configure ESP-IDF")};OutlinedButton(onClick=onDoctor,modifier=Modifier.fillMaxWidth()){Text("Doctor")};OutlinedButton(onClick=onFullClean,modifier=Modifier.fillMaxWidth()){Text("Full Clean")};Text("Full Clean removes only ESP-IDF build output. Project source files are preserved.",style=MaterialTheme.typography.bodySmall)}}
+        Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("Diagnostics",style=MaterialTheme.typography.titleMedium);OutlinedButton(onClick=onExportLog,modifier=Modifier.fillMaxWidth()){Text("Export Diagnostic Log")};Text("Saves the persistent diagnostic log without loading it into the editor.",style=MaterialTheme.typography.bodySmall)}}
     }
 }
