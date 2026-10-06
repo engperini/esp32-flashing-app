@@ -89,15 +89,8 @@ class IdfOperationService : Service() {
         update("Building $target firmware…")
         val executor = IdfBuildExecutor(applicationContext)
         activeBuildExecutor = executor
-        runCatching {
-            try {
-                executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…") }
-            } catch (e: IdfBuildExecutor.SessionEndedWithoutMarkerException) {
-                BuildState.output(e.outputTail + "\n\nBuild session interrupted. Resuming incrementally…", "Resuming interrupted build…")
-                update("Build interrupted — resuming…")
-                executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…") }
-            }
-        }.onSuccess {
+        runCatching { executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…") } }
+.onSuccess {
                 FlashPlanLoader.promoteLastGood(projects.projectDir)
                 BuildState.success(it)
                 AppState.operation(OperationState.BUILD_SUCCESS, "Firmware built successfully • last-good artifacts saved")
@@ -109,7 +102,7 @@ class IdfOperationService : Service() {
                     AppState.operation(OperationState.IDLE, "Build cancelled • partial build preserved")
                     update("Build cancelled")
                 } else {
-                    val message = if (it is IdfBuildExecutor.SessionEndedWithoutMarkerException) "Build session ended twice without a compiler error. Last output:\n" + it.outputTail else it.message ?: "Build failed"
+                    val message = it.message ?: "Build failed"
                     BuildState.error(message)
                     AppState.operation(OperationState.BUILD_ERROR, "Build failed — see Build details")
                     update("Build failed")
