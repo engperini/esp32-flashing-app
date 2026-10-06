@@ -46,11 +46,13 @@ class IdfOperationService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        PersistentDiagnosticLog.append(applicationContext, "SERVICE_CREATE")
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "ESP-IDF operations", NotificationManager.IMPORTANCE_LOW))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        PersistentDiagnosticLog.append(applicationContext, "SERVICE_START", "action=${intent?.action} flags=$flags startId=$startId")
         if (intent?.action == ACTION_CANCEL_BUILD) {
             activeBuildExecutor?.cancelCurrentBuild()
             BuildState.cancelling()
@@ -89,14 +91,17 @@ class IdfOperationService : Service() {
         update("Building $target firmware…")
         val executor = IdfBuildExecutor(applicationContext)
         activeBuildExecutor = executor
-        runCatching { executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…") } }
+        PersistentDiagnosticLog.append(applicationContext, "BUILD_START", "target=$target")
+        runCatching { executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) } }
 .onSuccess {
+                PersistentDiagnosticLog.append(applicationContext, "BUILD_SUCCESS")
                 FlashPlanLoader.promoteLastGood(projects.projectDir)
                 BuildState.success(it)
                 AppState.operation(OperationState.BUILD_SUCCESS, "Firmware built successfully • last-good artifacts saved")
                 update(if (requestFlash) "Build completed — reopen app to start Flash" else "Build completed")
                 if (requestFlash) AppState.operation(OperationState.BUILD_SUCCESS, "Build completed — tap Flash to continue safely")
             }.onFailure {
+                PersistentDiagnosticLog.append(applicationContext, "BUILD_FAILURE", it.stackTraceToString().takeLast(12000))
                 if (it is IdfBuildExecutor.BuildCancelledException) {
                     BuildState.cancelled()
                     AppState.operation(OperationState.IDLE, "Build cancelled • partial build preserved")
@@ -166,6 +171,6 @@ class IdfOperationService : Service() {
             .build()
     }
 
-    override fun onDestroy() { if (wakeLock?.isHeld == true) wakeLock?.release(); wakeLock = null; scope.cancel(); super.onDestroy() }
+    override fun onDestroy() { PersistentDiagnosticLog.append(applicationContext, "SERVICE_DESTROY"); if (wakeLock?.isHeld == true) wakeLock?.release(); wakeLock = null; scope.cancel(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
 }
