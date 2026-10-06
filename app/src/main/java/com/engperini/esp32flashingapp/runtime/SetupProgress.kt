@@ -4,7 +4,7 @@ enum class SetupStep(val label: String) {
     RUNTIME("Debian ARM64 runtime"),
     DEPENDENCIES("Build dependencies"),
     ESP_IDF("ESP-IDF 5.5"),
-    TOOLCHAIN("ESP32-S3 toolchain"),
+    TOOLCHAIN("Target toolchain"),
     READY("Ready")
 }
 
