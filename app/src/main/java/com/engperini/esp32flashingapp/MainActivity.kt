@@ -5,6 +5,7 @@ import android.hardware.usb.UsbManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,7 @@ import kotlinx.coroutines.launch
 class MainActivity:ComponentActivity(){
  private lateinit var device:UsbDeviceEngine
  private lateinit var projects:ProjectManager
+ private val exportLog=registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")){uri->if(uri!=null)runCatching{contentResolver.openOutputStream(uri)?.use{out->com.engperini.esp32flashingapp.runtime.PersistentDiagnosticLog.file(applicationContext).inputStream().use{it.copyTo(out)}}}.onSuccess{AppState.operation(OperationState.IDLE,"Diagnostic log exported")}.onFailure{AppState.operation(OperationState.BUILD_ERROR,"Log export failed: "+it.message)}}
  private val usbReceiver=object:BroadcastReceiver(){
   override fun onReceive(context:Context,intent:Intent){when(intent.action){
    UsbDeviceEngine.ACTION_USB_PERMISSION->device.onPermissionResult(intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED,false))
@@ -58,7 +60,7 @@ class MainActivity:ComponentActivity(){
     saveFeedback=saveFeedback,
     onCreateFile={path->runCatching{projects.createFile(path)}.onSuccess{files=projects.listFiles().map(projects::relativePath);selectedFile=path;editorText=""}.onFailure{AppState.operation(OperationState.BUILD_ERROR,it.message?:"Unable to create file")}},
     onCreateFolder={path->runCatching{projects.createDirectory(path)}.onSuccess{files=projects.listFiles().map(projects::relativePath)}.onFailure{AppState.operation(OperationState.BUILD_ERROR,it.message?:"Unable to create folder")}},
-    onConfigure={configureIdf()},onDoctor={runDoctor()},onFullClean={runFullClean()}
+    onConfigure={configureIdf()},onDoctor={runDoctor()},onFullClean={runFullClean()},onExportLog={exportLog.launch("esp32-flashing-app.log")}
    )
   }}
  }
