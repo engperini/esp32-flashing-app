@@ -89,12 +89,10 @@ class IdfOperationService : Service() {
         update("Building $target firmware…")
         val executor = IdfBuildExecutor(applicationContext)
         activeBuildExecutor = executor
-        var resumed = false
         runCatching {
             try {
                 executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…") }
             } catch (e: IdfBuildExecutor.SessionEndedWithoutMarkerException) {
-                resumed = true
                 BuildState.output(e.outputTail + "\n\nBuild session interrupted. Resuming incrementally…", "Resuming interrupted build…")
                 update("Build interrupted — resuming…")
                 executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…") }
