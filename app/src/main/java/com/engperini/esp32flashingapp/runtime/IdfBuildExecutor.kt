@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 class IdfBuildExecutor(private val context: Context) {
-    class BuildCancelledException : RuntimeException("Build cancelled")
+    class BuildCancelledException : RuntimeException("Build cancelled")\n    class SessionEndedWithoutMarkerException(operation: String, val outputTail: String) : RuntimeException(operation + " session ended unexpectedly")
     private val cancelled = AtomicBoolean(false)
     private val activeCancel = AtomicReference<(() -> Unit)?>(null)
 
