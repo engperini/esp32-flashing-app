@@ -89,7 +89,7 @@ class IdfOperationService : Service() {
         update("Building $target firmware…")
         val executor = IdfBuildExecutor(applicationContext)
         activeBuildExecutor = executor
-        runCatching { executor.buildPrepared(projects.projectDir, target) { BuildState.output(it) } }
+        runCatching { executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…") } }
             .onSuccess {
                 FlashPlanLoader.promoteLastGood(projects.projectDir)
                 BuildState.success(it)
@@ -113,11 +113,11 @@ class IdfOperationService : Service() {
 
     private suspend fun runFullClean(target: String) {
         val projects = ProjectManager(applicationContext)
-        BuildState.open()
+        BuildState.open("ESP-IDF Full Clean", "Cleaning build output…")
         AppState.operation(OperationState.PREPARING_BUILD, "Cleaning ESP-IDF build cache…")
         update("Running ESP-IDF Full Clean…")
-        runCatching { IdfBuildExecutor(applicationContext).fullClean(projects.projectDir, target) { BuildState.output(it) } }
-            .onSuccess { BuildState.success(it); AppState.operation(OperationState.IDLE, "Full Clean completed — project ready for a fresh Build"); update("Full Clean completed") }
+        runCatching { IdfBuildExecutor(applicationContext).fullClean(projects.projectDir, target) { BuildState.output(it, "Cleaning build output…") } }
+            .onSuccess { BuildState.success(it, "Full Clean completed"); AppState.operation(OperationState.IDLE, "Full Clean completed — project ready for a fresh Build"); update("Full Clean completed") }
             .onFailure { val message = it.message ?: "Full Clean failed"; BuildState.error(message); AppState.operation(OperationState.BUILD_ERROR, "Full Clean failed — see details"); update("Full Clean failed") }
     }
 
@@ -138,11 +138,11 @@ class IdfOperationService : Service() {
     }
 
     private suspend fun runDoctor(target: String) {
-        BuildState.open()
+        BuildState.open("ESP-IDF Doctor", "Checking environment…")
         AppState.operation(OperationState.PREPARING_BUILD, "Checking ESP-IDF 5.5 environment…")
         update("Checking ESP-IDF environment…")
-        runCatching { IdfBuildExecutor(applicationContext).doctor(target) { BuildState.output(it) } }
-            .onSuccess { BuildState.success(it); AppState.operation(OperationState.IDLE, "ESP-IDF environment healthy"); update("ESP-IDF environment healthy") }
+        runCatching { IdfBuildExecutor(applicationContext).doctor(target) { BuildState.output(it, "Checking environment…") } }
+            .onSuccess { BuildState.success(it, "Environment healthy"); AppState.operation(OperationState.IDLE, "ESP-IDF environment healthy"); update("ESP-IDF environment healthy") }
             .onFailure {
                 val message = it.message ?: "ESP-IDF Doctor failed"
                 BuildState.error(message); AppState.operation(OperationState.BUILD_ERROR, "ESP-IDF repair needed"); update("ESP-IDF Doctor failed")
