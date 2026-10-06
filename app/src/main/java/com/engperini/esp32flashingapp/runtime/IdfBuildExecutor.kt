@@ -13,11 +13,11 @@ import java.util.concurrent.atomic.AtomicReference
 class IdfBuildExecutor(private val context: Context) {
     class BuildCancelledException : RuntimeException("Build cancelled")
     private val cancelled = AtomicBoolean(false)
-    private val activeSession = AtomicReference<AutoCloseable?>(null)
+    private val activeCancel = AtomicReference<(() -> Unit)?>(null)
 
     fun cancelCurrentBuild() {
         cancelled.set(true)
-        runCatching { activeSession.getAndSet(null)?.close() }
+        runCatching { activeCancel.getAndSet(null)?.invoke() }
     }
     companion object {
         private const val LOG_TAIL_CHARS = 65536
@@ -165,8 +165,8 @@ class IdfBuildExecutor(private val context: Context) {
         loginArgs += command
         val session = launcher.startCustomSession(loginArgs)
             ?: error("Unable to start " + operation)
-        activeSession.set(session)
-        if (cancelled.get()) { activeSession.getAndSet(null)?.close(); throw BuildCancelledException() }
+        activeCancel.set { session.close() }
+        if (cancelled.get()) { activeCancel.getAndSet(null)?.invoke(); throw BuildCancelledException() }
         val output = TailBuffer(LOG_TAIL_CHARS)
         val buffer = ByteArray(8192)
         try {
@@ -177,7 +177,7 @@ class IdfBuildExecutor(private val context: Context) {
                 onOutput(output.value().takeLast(UI_TAIL_CHARS))
             }
         } finally {
-            activeSession.compareAndSet(session, null)
+            activeCancel.set(null)
             session.close()
         }
 
