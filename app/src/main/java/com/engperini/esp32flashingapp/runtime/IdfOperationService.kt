@@ -21,6 +21,7 @@ class IdfOperationService : Service() {
         private const val ACTION_DOCTOR = "doctor"
         private const val ACTION_FULL_CLEAN = "full_clean"
         private const val ACTION_BUILD_FLASH = "build_flash"
+        private const val ACTION_CANCEL_BUILD = "cancel_build"
         private const val EXTRA_TARGET = "target"
 
         fun build(context: Context, target: String) = start(context, ACTION_BUILD, target)
@@ -28,6 +29,10 @@ class IdfOperationService : Service() {
         fun doctor(context: Context, target: String) = start(context, ACTION_DOCTOR, target)
         fun fullClean(context: Context, target: String) = start(context, ACTION_FULL_CLEAN, target)
         fun buildAndFlash(context: Context, target: String) = start(context, ACTION_BUILD_FLASH, target)
+        fun cancelBuild(context: Context) {
+            val i = Intent(context, IdfOperationService::class.java).setAction(ACTION_CANCEL_BUILD)
+            context.startService(i)
+        }
         private fun start(context: Context, action: String, target: String) {
             val i = Intent(context, IdfOperationService::class.java).setAction(action).putExtra(EXTRA_TARGET, target)
             androidx.core.content.ContextCompat.startForegroundService(context, i)
@@ -36,6 +41,7 @@ class IdfOperationService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var running = false
+    @Volatile private var activeBuildExecutor: IdfBuildExecutor? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
@@ -45,6 +51,12 @@ class IdfOperationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_CANCEL_BUILD) {
+            activeBuildExecutor?.cancelCurrentBuild()
+            BuildState.cancelling()
+            update("Cancelling Build…")
+            return START_NOT_STICKY
+        }
         startForeground(NOTIFICATION_ID, notification("Starting ESP-IDF operation…"))
         if (wakeLock?.isHeld != true) {
             wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, packageName + ":idf-operation").apply { acquire(60 * 60 * 1000L) }
@@ -75,7 +87,9 @@ class IdfOperationService : Service() {
         BuildState.open()
         AppState.operation(OperationState.BUILDING, "Building $target firmware…")
         update("Building $target firmware…")
-        runCatching { IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir, target) { BuildState.output(it) } }
+        val executor = IdfBuildExecutor(applicationContext)
+        activeBuildExecutor = executor
+        runCatching { executor.buildPrepared(projects.projectDir, target) { BuildState.output(it) } }
             .onSuccess {
                 FlashPlanLoader.promoteLastGood(projects.projectDir)
                 BuildState.success(it)
@@ -83,11 +97,18 @@ class IdfOperationService : Service() {
                 update(if (requestFlash) "Build completed — reopen app to start Flash" else "Build completed")
                 if (requestFlash) AppState.operation(OperationState.BUILD_SUCCESS, "Build completed — tap Flash to continue safely")
             }.onFailure {
-                val message = it.message ?: "Build failed"
-                BuildState.error(message)
-                AppState.operation(OperationState.BUILD_ERROR, "Build failed — see Build details")
-                update("Build failed")
+                if (it is IdfBuildExecutor.BuildCancelledException) {
+                    BuildState.cancelled()
+                    AppState.operation(OperationState.IDLE, "Build cancelled • partial build preserved")
+                    update("Build cancelled")
+                } else {
+                    val message = it.message ?: "Build failed"
+                    BuildState.error(message)
+                    AppState.operation(OperationState.BUILD_ERROR, "Build failed — see Build details")
+                    update("Build failed")
+                }
             }
+        activeBuildExecutor = null
     }
 
     private suspend fun runFullClean(target: String) {
