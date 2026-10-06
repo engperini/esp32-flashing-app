@@ -21,5 +21,6 @@ object SetupState {
         val history = if (value.completed) (old.history + value).takeLast(20) else old.history
         old.copy(visible = true, current = value, history = history, error = null)
     }
+    fun success() = mutable.update { it.copy(error = null) }
     fun error(message: String) = mutable.update { it.copy(visible = true, error = message) }
 }
