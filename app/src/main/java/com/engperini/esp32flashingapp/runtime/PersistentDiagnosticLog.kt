@@ -33,9 +33,15 @@ object PersistentDiagnosticLog {
         }
     }
 
+    private var lastBuildSnapshotAt = 0L
+
     fun appendBuildOutput(context: Context, output: String) {
-        val tail = output.takeLast(4096)
-        append(context, "BUILD_OUTPUT", tail)
+        val now = System.currentTimeMillis()
+        synchronized(lock) {
+            if (now - lastBuildSnapshotAt < 15_000L) return
+            lastBuildSnapshotAt = now
+        }
+        append(context, "BUILD_OUTPUT", output.takeLast(2048))
     }
 
     private fun rotateIfNeeded(file: File) {
