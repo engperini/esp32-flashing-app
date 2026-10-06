@@ -42,6 +42,7 @@ fun MainShell(
     onSelectFile: (String) -> Unit,
     onEditorText: (String) -> Unit,
     onSaveFile: () -> Unit,
+    saveFeedback: String,
     onCreateFile: (String) -> Unit,
     onCreateFolder: (String) -> Unit,
     onConfigure: () -> Unit,
@@ -60,7 +61,7 @@ fun MainShell(
     ) { padding ->
         when(section) {
             AppSection.HARDWARE -> HardwareScreen(state, project, connected, onTarget, onConnect, onDisconnect, onBootloader, onReset, onBuild, onFlash, onBuildFlash, onStartMonitor, onStopMonitor, onClearSerial, Modifier.padding(padding))
-            AppSection.PROJECT -> ProjectScreen(files, selectedFile, editorText, onSelectFile, onEditorText, onSaveFile, onCreateFile, onCreateFolder, Modifier.padding(padding))
+            AppSection.PROJECT -> ProjectScreen(files, selectedFile, editorText, onSelectFile, onEditorText, onSaveFile, saveFeedback, onCreateFile, onCreateFolder, Modifier.padding(padding))
             AppSection.SETTINGS -> SettingsScreen(project, onConfigure, onDoctor, onFullClean, Modifier.padding(padding))
         }
     }
@@ -102,7 +103,7 @@ fun MainShell(
     }
 }
 
-@Composable private fun ProjectScreen(files:List<String>,selectedFile:String,editorText:String,onSelectFile:(String)->Unit,onEditorText:(String)->Unit,onSaveFile:()->Unit,onCreateFile:(String)->Unit,onCreateFolder:(String)->Unit,modifier:Modifier){
+@Composable private fun ProjectScreen(files:List<String>,selectedFile:String,editorText:String,onSelectFile:(String)->Unit,onEditorText:(String)->Unit,onSaveFile:()->Unit,saveFeedback:String,onCreateFile:(String)->Unit,onCreateFolder:(String)->Unit,modifier:Modifier){
     var newKind by remember { mutableStateOf<String?>(null) };var newPath by remember { mutableStateOf("") }
     if(newKind!=null) AlertDialog(onDismissRequest={newKind=null},title={Text("New "+newKind)},text={OutlinedTextField(newPath,{newPath=it},label={Text("Path inside project")},singleLine=true)},confirmButton={Button(onClick={if(newKind=="file")onCreateFile(newPath) else onCreateFolder(newPath);newPath="";newKind=null}){Text("Create")}},dismissButton={TextButton(onClick={newKind=null}){Text("Cancel")}})
     Column(modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
@@ -111,6 +112,7 @@ fun MainShell(
         Text(selectedFile.ifBlank{"Select a file"},style=MaterialTheme.typography.titleMedium)
         OutlinedTextField(editorText,onEditorText,enabled=selectedFile.isNotBlank(),modifier=Modifier.fillMaxWidth().weight(1f),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("Editor")})
         Button(enabled=selectedFile.isNotBlank(),onClick=onSaveFile,modifier=Modifier.fillMaxWidth()){Text("Save")}
+        if(saveFeedback.isNotBlank()) Text(saveFeedback,style=MaterialTheme.typography.bodySmall)
     }
 }
 
