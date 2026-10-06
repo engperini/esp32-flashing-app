@@ -1,30 +1,60 @@
 package com.engperini.esp32flashingapp.project
 
 import android.content.Context
+import org.json.JSONObject
 import java.io.File
 
 class ProjectManager(context: Context) {
-    private val root = File(context.filesDir, "projects/example")
+    private val projectsRoot = File(context.filesDir, "projects")
+    private val root = File(projectsRoot, "example")
+    private val configFile = File(root, ".esp32-flashing-app.json")
     val mainFile = File(root, "main/main.c")
     val projectDir: File get() = root
 
     fun ensureExampleProject(): File {
         File(root, "main").mkdirs()
-        File(root, "CMakeLists.txt").writeText(
-            "cmake_minimum_required(VERSION 3.16)\n" +
-            "include(\u0024ENV{IDF_PATH}/tools/cmake/project.cmake)\n" +
-            "project(esp32_flashing_app_example)\n"
-        )
-        File(root, "main/CMakeLists.txt").writeText(
-            "idf_component_register(SRCS \"main.c\" INCLUDE_DIRS \".\")\n"
-        )
-        val sdkconfigDefaults = File(root, "sdkconfig.defaults")
-        val desiredDefaults = "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n"
-        if (!sdkconfigDefaults.exists() || sdkconfigDefaults.readText() != desiredDefaults) sdkconfigDefaults.writeText(desiredDefaults)
-        if (!mainFile.exists()) mainFile.writeText(ExampleFirmware.mainC)
+        createIfMissing(File(root, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.16)\ninclude(\u0024ENV{IDF_PATH}/tools/cmake/project.cmake)\nproject(esp32_flashing_app_example)\n")
+        createIfMissing(File(root, "main/CMakeLists.txt"), "idf_component_register(SRCS \"main.c\" INCLUDE_DIRS \".\")\n")
+        createIfMissing(File(root, "sdkconfig.defaults"), "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n")
+        createIfMissing(mainFile, ExampleFirmware.mainC)
+        if (!configFile.exists()) saveConfig(ProjectConfig("Example", "esp32s3"))
         return root
     }
 
+    fun config(): ProjectConfig {
+        ensureExampleProject()
+        return runCatching {
+            val json = JSONObject(configFile.readText())
+            ProjectConfig(json.optString("name", "Example"), json.optString("target", "esp32s3"))
+        }.getOrElse { ProjectConfig("Example", "esp32s3") }
+    }
+
+    fun setTarget(target: String) {
+        require(target in SupportedTargets.values) { "Unsupported target: \u0024target" }
+        saveConfig(config().copy(target = target))
+    }
+
+    fun listFiles(): List<File> {
+        ensureExampleProject()
+        return root.walkTopDown().filter { it.isFile && it != configFile && !it.relativeTo(root).path.startsWith("build" + File.separator) }.toList()
+    }
+
+    fun relativePath(file: File): String = file.relativeTo(root).path.replace(File.separatorChar, '/')
+    fun read(relativePath: String): String = safeFile(relativePath).readText()
+    fun save(relativePath: String, text: String) { safeFile(relativePath).apply { parentFile?.mkdirs(); writeText(text) } }
+    fun createFile(relativePath: String) { val f=safeFile(relativePath); f.parentFile?.mkdirs(); require(!f.exists()){"File already exists"}; f.writeText("") }
+    fun createDirectory(relativePath: String) { val f=safeFile(relativePath); require(!f.exists()){"Directory already exists"}; require(f.mkdirs()){"Unable to create directory"} }
     fun loadMain(): String { ensureExampleProject(); return mainFile.readText() }
-    fun saveMain(text: String) { ensureExampleProject(); mainFile.writeText(text) }
+    fun saveMain(text: String) { save("main/main.c", text) }
+
+    private fun createIfMissing(file: File, content: String) { if (!file.exists()) { file.parentFile?.mkdirs(); file.writeText(content) } }
+    private fun saveConfig(config: ProjectConfig) {
+        root.mkdirs()
+        configFile.writeText(JSONObject().put("name", config.name).put("target", config.target).toString(2))
+    }
+    private fun safeFile(relativePath: String): File {
+        val candidate = File(root, relativePath).canonicalFile
+        require(candidate.path.startsWith(root.canonicalFile.path + File.separator)) { "Path escapes project" }
+        return candidate
+    }
 }
