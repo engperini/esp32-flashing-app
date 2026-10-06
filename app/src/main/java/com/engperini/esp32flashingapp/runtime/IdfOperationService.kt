@@ -23,11 +23,11 @@ class IdfOperationService : Service() {
         private const val ACTION_BUILD_FLASH = "build_flash"
         private const val EXTRA_TARGET = "target"
 
-        fun build(context: Context, target: String = "esp32s3") = start(context, ACTION_BUILD, target)
-        fun setup(context: Context, target: String = "esp32s3") = start(context, ACTION_SETUP, target)
-        fun doctor(context: Context, target: String = "esp32s3") = start(context, ACTION_DOCTOR, target)
-        fun fullClean(context: Context, target: String = "esp32s3") = start(context, ACTION_FULL_CLEAN, target)
-        fun buildAndFlash(context: Context, target: String = "esp32s3") = start(context, ACTION_BUILD_FLASH, target)
+        fun build(context: Context, target: String) = start(context, ACTION_BUILD, target)
+        fun setup(context: Context, target: String) = start(context, ACTION_SETUP, target)
+        fun doctor(context: Context, target: String) = start(context, ACTION_DOCTOR, target)
+        fun fullClean(context: Context, target: String) = start(context, ACTION_FULL_CLEAN, target)
+        fun buildAndFlash(context: Context, target: String) = start(context, ACTION_BUILD_FLASH, target)
         private fun start(context: Context, action: String, target: String) {
             val i = Intent(context, IdfOperationService::class.java).setAction(action).putExtra(EXTRA_TARGET, target)
             androidx.core.content.ContextCompat.startForegroundService(context, i)
@@ -51,7 +51,7 @@ class IdfOperationService : Service() {
         }
         if (running) return START_NOT_STICKY
         running = true
-        val target = intent?.getStringExtra(EXTRA_TARGET) ?: "esp32s3"
+        val target = intent?.getStringExtra(EXTRA_TARGET) ?: return START_NOT_STICKY
         scope.launch {
             try {
                 when (intent?.action) {
@@ -73,8 +73,8 @@ class IdfOperationService : Service() {
     private suspend fun runBuild(target: String, requestFlash: Boolean = false) {
         val projects = ProjectManager(applicationContext)
         BuildState.open()
-        AppState.operation(OperationState.BUILDING, "Building ESP32-S3 firmware…")
-        update("Building ESP32-S3 firmware…")
+        AppState.operation(OperationState.BUILDING, "Building $target firmware…")
+        update("Building $target firmware…")
         runCatching { IdfBuildExecutor(applicationContext).buildPrepared(projects.projectDir, target) { BuildState.output(it) } }
             .onSuccess {
                 FlashPlanLoader.promoteLastGood(projects.projectDir)
@@ -102,10 +102,14 @@ class IdfOperationService : Service() {
 
     private suspend fun runSetup(target: String) {
         SetupState.open()
-        AppState.operation(OperationState.PREPARING_BUILD, "Configuring ESP-IDF 5.5 for ESP32-S3…")
+        AppState.operation(OperationState.PREPARING_BUILD, "Configuring ESP-IDF 5.5 for $target…")
         update("Configuring ESP-IDF 5.5…")
-        runCatching { IdfBuildExecutor(applicationContext).prepare(target) { SetupState.progress(it) } }
-            .onSuccess { AppState.operation(OperationState.IDLE, "ESP-IDF 5.5 / $target ready"); update("ESP-IDF ready") }
+        runCatching {
+            val projects = ProjectManager(applicationContext)
+            val executor = IdfBuildExecutor(applicationContext)
+            executor.prepare(target) { SetupState.progress(it) }
+            executor.setProjectTarget(projects.projectDir, target) { SetupState.progress(SetupProgress(SetupStep.TOOLCHAIN, "Applying project target $target…", it)) }
+        }.onSuccess { AppState.operation(OperationState.IDLE, "ESP-IDF 5.5 / $target ready"); update("ESP-IDF ready") }
             .onFailure {
                 val message = it.message ?: "ESP-IDF setup failed"
                 SetupState.error(message); AppState.operation(OperationState.BUILD_ERROR, message); update("ESP-IDF setup failed")
