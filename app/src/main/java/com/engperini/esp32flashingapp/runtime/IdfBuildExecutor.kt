@@ -71,8 +71,23 @@ class IdfBuildExecutor(private val context: Context) {
             "cd " + shQuote(IdfRuntimePlan.IDF_PATH) + " && . ./export.sh && " +
             "echo '--- ESP-IDF ---' && idf.py --version && echo '--- Python ---' && python3 --version && " +
             "echo '--- CMake ---' && cmake --version | head -n 1 && echo '--- Ninja ---' && ninja --version && " +
-            "echo '--- Target toolchain ---' && case " + shQuote(target) + " in esp32s3) xtensa-esp32s3-elf-gcc --version | head -n 1 ;; *) exit 2 ;; esac && echo " + success
+            "echo '--- Target toolchain ---' && case " + shQuote(target) + " in esp32s3) xtensa-esp32s3-elf-gcc --version | head -n 1 ;; esp32) xtensa-esp32-elf-gcc --version | head -n 1 ;; *) exit 2 ;; esac && echo " + success
         executeStage(launcher, cli, command, success, onOutput, "ESP-IDF Doctor")
+    }
+
+    suspend fun setProjectTarget(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
+        requireTarget(target)
+        require(project.isDirectory) { "Project directory not found: \u0024project" }
+        requireRuntimeReady()
+        val rootfs = File(host.prefixDir, "var/lib/pr/containers/\u0024{IdfRuntimePlan.GUEST_ALIAS}/rootfs")
+        IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: \u0024{it.name}" } }
+        val launcher = ProotLauncher(host)
+        val cli = prepareLauncher()
+        val success = "__APP_IDF_SET_TARGET_OK__"
+        val command = "export IDF_TOOLS_PATH=" + shQuote(IdfRuntimePlan.IDF_TOOLS_PATH) + " IDF_PATH=" + shQuote(IdfRuntimePlan.IDF_PATH) + " && " +
+            "cd " + shQuote(IdfRuntimePlan.IDF_PATH) + " && . ./export.sh >/dev/null && " +
+            "cd " + shQuote(project.absolutePath) + " && idf.py set-target " + shQuote(target) + " && echo " + success
+        executeStage(launcher, cli, command, success, onOutput, "Set Target")
     }
 
     suspend fun fullClean(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
