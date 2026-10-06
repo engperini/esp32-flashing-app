@@ -175,7 +175,6 @@ class IdfBuildExecutor(private val context: Context) {
                 if (count <= 0) break
                 output.append(String(buffer, 0, count))
                 onOutput(output.value().takeLast(UI_TAIL_CHARS))
-                if (output.value().contains(success)) break
             }
         } finally {
             activeCancel.set(null)
