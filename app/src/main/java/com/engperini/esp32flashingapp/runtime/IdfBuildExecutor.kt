@@ -46,7 +46,7 @@ class IdfBuildExecutor(private val context: Context) {
                 val markerDir = File(rootfs, "opt/esp/.app-state").apply { mkdirs() }
                 val success = "__APP_STAGE_" + stage.name.uppercase() + "_OK__"
                 val step = if (stage.name == "common") SetupStep.ESP_IDF else SetupStep.TOOLCHAIN
-                val status = if (stage.name == "common") "Installing dependencies and ESP-IDF 5.5…" else "Installing ESP32-S3 toolchain…"
+                val status = if (stage.name == "common") "Installing dependencies and ESP-IDF 5.5…" else "Installing $target toolchain…"
                 onProgress(SetupProgress(step, status))
                 val output = executeStage(launcher, cli, stage.command + " && echo " + success, success, {
                     onProgress(SetupProgress(step, status, it))
