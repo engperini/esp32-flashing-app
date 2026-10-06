@@ -44,16 +44,18 @@ class MainActivity:ComponentActivity(){
    var files by remember{mutableStateOf(projects.listFiles().map(projects::relativePath))}
    var selectedFile by remember{mutableStateOf("main/main.c")}
    var editorText by remember{mutableStateOf(projects.read(selectedFile))}
+   var saveFeedback by remember{mutableStateOf("")}
    OperationDialogs(setup,build,flash)
    MainShell(state,project,section,{section=it},device.isConnected(),files,selectedFile,editorText,
-    onTarget={target->if(target!=project.target){projects.setTarget(target);project=projects.config();AppState.operation(OperationState.IDLE,"Target changed to \u0024target • Configure ESP-IDF before building")}},
+    onTarget={target->if(target!=project.target){projects.setTarget(target);project=projects.config();AppState.operation(OperationState.IDLE,"Target changed to $target • Configure ESP-IDF before building")}},
     onConnect={device.connect()},onDisconnect={device.disconnect()},
     onBootloader={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}},
     onReset={lifecycleScope.launch{runCatching{device.resetToApplication()}.onFailure{AppState.operation(OperationState.RESET_ERROR,it.message?:"Reset failed")}}},
     onBuild={startBuild()},onFlash={startFlash()},onBuildFlash={startBuildAndFlash()},
     onStartMonitor={device.startSerialMonitor()},onStopMonitor={device.stopSerialMonitor()},onClearSerial={AppState.clearSerial()},
     onSelectFile={path->selectedFile=path;editorText=runCatching{projects.read(path)}.getOrElse{"Unable to read file: "+it.message}},
-    onEditorText={editorText=it},onSaveFile={projects.save(selectedFile,editorText);AppState.operation(OperationState.IDLE,"\u0024selectedFile saved")},
+    onEditorText={editorText=it;saveFeedback=""},onSaveFile={projects.save(selectedFile,editorText);saveFeedback="$selectedFile saved";AppState.operation(OperationState.IDLE,"$selectedFile saved")},
+    saveFeedback=saveFeedback,
     onCreateFile={path->runCatching{projects.createFile(path)}.onSuccess{files=projects.listFiles().map(projects::relativePath);selectedFile=path;editorText=""}.onFailure{AppState.operation(OperationState.BUILD_ERROR,it.message?:"Unable to create file")}},
     onCreateFolder={path->runCatching{projects.createDirectory(path)}.onSuccess{files=projects.listFiles().map(projects::relativePath)}.onFailure{AppState.operation(OperationState.BUILD_ERROR,it.message?:"Unable to create folder")}},
     onConfigure={configureIdf()},onDoctor={runDoctor()},onFullClean={runFullClean()}
@@ -69,7 +71,7 @@ class MainActivity:ComponentActivity(){
  private fun startFlash(){
   if(target()!="esp32s3"){AppState.operation(OperationState.FLASH_ERROR,"Native Flash for "+target()+" is not enabled until its reset path is validated");return}
   lifecycleScope.launch{FlashState.open();AppState.operation(OperationState.PREPARING_BUILD,"Validating existing firmware artifacts…");runCatching{
-   val plan=FlashPlanLoader.load(projects.projectDir);FlashState.status("Using existing build: \u0024{plan.images.size} validated flash images at \u0024{plan.baudRate} baud.");FlashState.status("Taking exclusive USB ownership…");device.acquireTransport()
+   val plan=FlashPlanLoader.load(projects.projectDir);FlashState.status("Using existing build: ${plan.images.size} validated flash images at ${plan.baudRate} baud.");FlashState.status("Taking exclusive USB ownership…");device.acquireTransport()
    try{FlashState.status("Entering ESP32-S3 ROM bootloader…");device.enterBootloader();FlashState.status("Synchronizing at 115200 baud…");AppState.operation(OperationState.BOOTLOADER_READY,"Synchronizing with ESP32-S3 ROM…");val transport=EspRomTransport(device);check(transport.sync()){"ESP32-S3 ROM did not answer SYNC"};FlashState.status("ESP32-S3 ROM SYNC successful.");transport.flash(plan){FlashState.status(it)};FlashState.status("Flash completed and verified — leaving USB download mode…");transport.watchdogReset();FlashState.success("Flash completed and verified — reconnecting application USB…");device.reconnectApplication()}finally{device.releaseTransport()}
   }.onFailure{val message=it.message?:"Flash failed";FlashState.error(message);AppState.operation(OperationState.FLASH_ERROR,"Flash stopped — see details")}}
  }
