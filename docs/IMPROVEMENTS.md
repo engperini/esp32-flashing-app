@@ -1,42 +1,29 @@
 # Improvements backlog
 
-Only current, actionable improvements are kept here. Validated architecture and product decisions remain in `PROJECT_GUIDELINES.md`.
+Only current, actionable improvements are kept here. Remove an item when it is implemented and validated. Validated architecture and product decisions belong in `PROJECT_GUIDELINES.md`.
 
-## Background execution — MVP requirement
+## ESP-IDF operations
 
-- Provisioning, Build and Flash must survive the app UI being sent to the background.
-- Do not run long operations in an Activity `lifecycleScope`.
-- Move long-running work to a foreground service/durable application-scoped operation engine with a user-visible Android progress notification.
-- Reopening the app must reattach the UI to the active operation and its current log/progress rather than starting it again.
-- Define safe cancellation and recovery semantics for interrupted operations.
-
-## Build and ESP-IDF runtime
-
+- Add safe cancellation to **Configure ESP-IDF**. Cancellation must stop the active provisioning/download/install session, preserve already completed stages, and allow Configure to resume safely.
 - Reduce Build startup latency caused by running the full ESP-IDF `export.sh` discovery on every build. Provision the environment once and reuse the required `IDF_PATH`, `IDF_TOOLS_PATH`, PATH and Python environment safely.
-- Keep Build independent from USB connection state.
-- Preserve the last known-good firmware artifacts when a later build fails. A failed/incomplete build must not destroy the only flashable artifact set.
+- Keep the Build cancellation path observable: cancelling must stop the active PRoot/Ninja process tree, preserve partial build output, and allow the next Build to resume incrementally.
+
+## Project workflow
+
+- Complete real multi-project management: create, select, rename and delete projects while keeping each project's target and files isolated.
+- Add rename and delete operations to the Project file explorer.
+- Add project import/export using a portable ESP-IDF project format.
+
+## Build & Flash
+
+- Make **Build & Flash** a true chained operation: Build must complete successfully, promote the new last-good artifact set, then start native Flash automatically. A failed or cancelled Build must never start Flash.
+- Keep target-specific native Flash/reset behavior isolated. ESP32-S3 is the validated baseline; ESP32 classic must be physically validated before being marked supported for Flash.
 
 ## Flash artifact integrity
 
-- Treat the ESP-IDF build output as one consistent artifact set.
-- Use the official ESP-IDF 5.5 `build/flasher_args.json` as the structured flash manifest.
-- Before taking USB ownership, validate the target and every binary referenced by `flash_files`.
-- If an artifact is missing, report a specific preflight message such as `Build incomplete: bootloader.bin missing — run Build` instead of a generic Flash failure.
-- Keep the actions distinct: `Build`, `Flash`, and `Build & Flash`.
+- Make replacement of the last-good flash artifact set atomic so an interrupted promotion cannot leave a partially replaced set.
+- Extend flash preflight diagnostics with specific missing/corrupt artifact messages where the current validation still falls back to a generic failure.
 
-## USB lifecycle
+## Application state
 
-- Detect physical USB removal and transition to `DISCONNECTED` instead of leaving `MONITOR_ERROR` as the persistent application state.
-- Stop the serial reader cleanly on USB removal.
-- Disable Bootloader, Reset and Flash actions when no device is connected.
-- USB disconnect/reconnect must not affect an ESP-IDF Build already running.
-
-## Serial Monitor
-
-- Replace the current RX summary-only area at the bottom of the main screen with a real receive monitor.
-- Display incoming serial RX text in a scrollable read-only panel.
-- Provide a user-selectable `Auto-scroll` option, enabled by default.
-- Keep the RX byte counter and Clear action.
-- No TX/input field yet; this first monitor iteration is RX-only.
-- Preserve received output while the monitor is connected, with a bounded in-memory buffer to avoid unbounded growth.
-- Pause USB monitoring only while the flash transport has exclusive ownership, then resume it after flashing.
+- Separate Serial Monitor state from the general operation state so Build/Setup status cannot make an active monitor appear stopped in the UI.
