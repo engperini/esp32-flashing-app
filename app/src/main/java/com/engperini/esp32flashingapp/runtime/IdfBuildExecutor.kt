@@ -11,7 +11,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 class IdfBuildExecutor(private val context: Context) {
-    class BuildCancelledException : RuntimeException("Build cancelled")\n    class SessionEndedWithoutMarkerException(operation: String, val outputTail: String) : RuntimeException(operation + " session ended unexpectedly")
+    class BuildCancelledException : RuntimeException("Build cancelled")
+    class SessionEndedWithoutMarkerException(operation: String, val outputTail: String) : RuntimeException(operation + " session ended unexpectedly")
     private val cancelled = AtomicBoolean(false)
     private val activeCancel = AtomicReference<(() -> Unit)?>(null)
 
@@ -195,7 +196,7 @@ class IdfBuildExecutor(private val context: Context) {
             val cause = when {
                 diagnostic.isNotBlank() -> diagnostic
                 exitCode != null -> operation + " process exited with code " + exitCode + ".\n" + tail.takeLast(6000)
-                else -> operation + " process ended without an exit marker. Android/runtime may have terminated it.\n" + tail.takeLast(6000)
+                else -> throw SessionEndedWithoutMarkerException(operation, tail.takeLast(6000))
             }
             error(operation + " failed:\n" + cause)
         }
