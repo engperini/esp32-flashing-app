@@ -1,6 +1,8 @@
 package com.engperini.esp32flashingapp.runtime
 
+import android.app.ActivityManager
 import android.content.Context
+import android.os.PowerManager
 import android.system.Os
 import id.or.oo.pr.engine.ProotHost
 import id.or.oo.pr.engine.ProotLauncher
@@ -196,7 +198,7 @@ class IdfBuildExecutor(private val context: Context) {
             val cause = when {
                 diagnostic.isNotBlank() -> diagnostic
                 exitCode != null -> operation + " process exited with code " + exitCode + ".\n" + tail.takeLast(6000)
-                else -> throw SessionEndedWithoutMarkerException(operation, tail.takeLast(6000))
+                else -> throw SessionEndedWithoutMarkerException(operation, tail.takeLast(6000) + "\n\n--- Android diagnostic ---\n" + androidDiagnostics())
             }
             error(operation + " failed:\n" + cause)
         }
@@ -218,6 +220,25 @@ class IdfBuildExecutor(private val context: Context) {
             session.close()
         }
         return output.value()
+    }
+
+    private fun androidDiagnostics(): String {
+        val power = context.getSystemService(PowerManager::class.java)
+        val activity = context.getSystemService(ActivityManager::class.java)
+        val memory = ActivityManager.MemoryInfo().also { activity.getMemoryInfo(it) }
+        val importance = ActivityManager.RunningAppProcessInfo().also {
+            ActivityManager.getMyMemoryState(it)
+        }.importance
+        val runtime = Runtime.getRuntime()
+        return buildString {
+            append("interactive=").append(power.isInteractive).append('\n')
+            append("powerSave=").append(power.isPowerSaveMode).append('\n')
+            append("processImportance=").append(importance).append('\n')
+            append("systemLowMemory=").append(memory.lowMemory).append('\n')
+            append("systemAvailMemMB=").append(memory.availMem / (1024 * 1024)).append('\n')
+            append("appHeapUsedMB=").append((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)).append('\n')
+            append("appHeapMaxMB=").append(runtime.maxMemory() / (1024 * 1024))
+        }
     }
 
     private fun shQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
