@@ -77,10 +77,10 @@ class IdfBuildExecutor(private val context: Context) {
 
     suspend fun setProjectTarget(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
         requireTarget(target)
-        require(project.isDirectory) { "Project directory not found: \u0024project" }
+        require(project.isDirectory) { "Project directory not found: $project" }
         requireRuntimeReady()
-        val rootfs = File(host.prefixDir, "var/lib/pr/containers/\u0024{IdfRuntimePlan.GUEST_ALIAS}/rootfs")
-        IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: \u0024{it.name}" } }
+        val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
+        IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: ${it.name}" } }
         val launcher = ProotLauncher(host)
         val cli = prepareLauncher()
         val success = "__APP_IDF_SET_TARGET_OK__"
