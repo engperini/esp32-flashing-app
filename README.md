@@ -38,10 +38,14 @@ Validated on a physical Android phone:
 - ESP-IDF 5.5 and ESP32-S3 toolchain provisioning;
 - ESP-IDF Doctor;
 - complete and incremental ESP32-S3 firmware build, including background-safe foreground execution;
-- native Android USB serial monitor at 115200 baud;\n- native Android ESP32-S3 flash write and MD5 verification;\n- reference firmware runs physically after flash: GPIO21 built-in LED heartbeat and one serial status line per second;
+- native Android USB serial monitor at 115200 baud;
+- native Android ESP32-S3 flash write and MD5 verification;
+- reference firmware runs physically after flash: GPIO21 built-in LED heartbeat and one serial status line per second;
+- automatic watchdog reset exits ESP32-S3 USB download mode after flash;
+- automatic USB detection/reconnection continues after Android permission is granted;
 - automatic ESP32-S3 ROM bootloader entry.
 
-The end-to-end build, native flash, firmware execution and serial monitor paths are physically validated. Remaining device-lifecycle TODO: automatically reopen the Android USB connection after the ESP32-S3 resets/re-enumerates at the end of a flash, so no physical cable reconnect is required.
+The end-to-end build, native flash, automatic post-flash boot, USB reconnection, firmware execution and serial monitor paths are physically validated on the reference hardware.
 
 ## Requirements
 
@@ -53,27 +57,32 @@ The end-to-end build, native flash, firmware execution and serial monitor paths 
 
 ## Download the Android app
 
-### Final/public distribution
+### User: install the app
 
-The finished MVP will be published as a versioned **GitHub Release with the APK attached directly to the release**. Normal users will not need to browse GitHub Actions. The Releases page will be the canonical open-source download location.
+Download the APK from the **latest GitHub Release**:
 
-### Current development builds
+https://github.com/engperini/esp32-flashing-app/releases/latest
 
-Until the first public Release, development APKs are produced automatically by GitHub Actions.
+Open the release, download `esp32-flashing-app.apk`, and install it on an ARM64 Android device. Android may ask you to allow installation from the browser or file manager used to open the APK.
 
-1. Open the repository **Actions** tab.
-2. Open the latest successful CI run on the `main` branch.
-3. In **Artifacts**, download `esp32-flashing-app-public-debug-apk`.
-4. Extract the downloaded archive and install the APK on an ARM64 Android device.
-5. Android may ask you to allow installation from the browser/file manager used to open the APK.
+Updates use a consistent public development signature, so a newer APK can normally be installed over the existing app. Do not uninstall between updates unless explicitly required: uninstalling also removes the app-managed ESP-IDF environment and project/build files.
 
-Repository Actions:
+GitHub Actions artifacts are CI outputs for developers and are **not** the normal application download channel.
 
-https://github.com/engperini/esp32-flashing-app/actions
+### Developer: clone and reproduce
 
-Updates from this development channel are signed consistently, so a newer APK can normally be installed **over the existing app**. Do not uninstall between updates unless explicitly required: uninstalling also removes the app-managed ESP-IDF environment and build files.
+Clone the repository and build from source:
 
-A proper GitHub Release APK is planned; the Actions artifact is the current development distribution method.
+```bash
+git clone https://github.com/engperini/esp32-flashing-app.git
+cd esp32-flashing-app
+```
+
+The canonical CI definition is `.github/workflows/ci.yml`. It uses Java 17, Android SDK platform/build-tools 34, Gradle 8.11.1, builds the maintained `oonid/pr` Android PRoot engine, runs the Android unit tests, builds the APK, and verifies the reproducible public AOSP test-key signature. The same workflow also builds the ESP-IDF 5.5 ESP32-S3 reference firmware and validates the ARM64 runtime payload.
+
+For an exact reproducible reference, use the versions and commands pinned in `.github/workflows/ci.yml` rather than relying on workstation-global Android/Gradle configuration.
+
+Releases are produced by `.github/workflows/release.yml`. That workflow **does not rebuild the APK**: it downloads the APK artifact from a specified successful CI run and publishes that exact file as a GitHub Release asset.
 
 ## First setup
 
