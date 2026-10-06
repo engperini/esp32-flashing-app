@@ -1,5 +1,7 @@
 package com.engperini.esp32flashingapp
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,6 +17,7 @@ import com.engperini.esp32flashingapp.project.SupportedTargets
 
 enum class AppSection { HARDWARE, PROJECT, SETTINGS }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainShell(
     state: AppUiState,
