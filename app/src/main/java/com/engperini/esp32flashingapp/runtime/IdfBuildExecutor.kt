@@ -7,8 +7,18 @@ import id.or.oo.pr.engine.ProotLauncher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class IdfBuildExecutor(private val context: Context) {
+    class BuildCancelledException : RuntimeException("Build cancelled")
+    private val cancelled = AtomicBoolean(false)
+    private val activeSession = AtomicReference<AutoCloseable?>(null)
+
+    fun cancelCurrentBuild() {
+        cancelled.set(true)
+        runCatching { activeSession.getAndSet(null)?.close() }
+    }
     companion object {
         private const val LOG_TAIL_CHARS = 65536
         private const val UI_TAIL_CHARS = 8192
@@ -107,6 +117,7 @@ class IdfBuildExecutor(private val context: Context) {
     }
 
     suspend fun buildPrepared(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
+        cancelled.set(false)
         require(project.isDirectory) { "Project directory not found: $project" }
         val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
         IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: ${it.name}" } }
@@ -154,6 +165,8 @@ class IdfBuildExecutor(private val context: Context) {
         loginArgs += command
         val session = launcher.startCustomSession(loginArgs)
             ?: error("Unable to start " + operation)
+        activeSession.set(session)
+        if (cancelled.get()) { activeSession.getAndSet(null)?.close(); throw BuildCancelledException() }
         val output = TailBuffer(LOG_TAIL_CHARS)
         val buffer = ByteArray(8192)
         try {
@@ -164,9 +177,11 @@ class IdfBuildExecutor(private val context: Context) {
                 onOutput(output.value().takeLast(UI_TAIL_CHARS))
             }
         } finally {
+            activeSession.compareAndSet(session, null)
             session.close()
         }
 
+        if (cancelled.get()) throw BuildCancelledException()
         val tail = output.value()
         if (!tail.contains(success)) {
             val exitCode = Regex("__APP_IDF_BUILD_EXIT__(\\d+)").find(tail)?.groupValues?.getOrNull(1)
