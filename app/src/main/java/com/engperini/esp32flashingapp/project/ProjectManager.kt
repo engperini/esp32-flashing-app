@@ -36,7 +36,7 @@ class ProjectManager(context: Context) {
 
     fun listFiles(): List<File> {
         ensureExampleProject()
-        return root.walkTopDown().filter { it.isFile && it != configFile && !it.relativeTo(root).path.startsWith("build" + File.separator) }.toList()
+        return root.walkTopDown().filter { file ->\n            val relative = file.relativeTo(root).path\n            file.isFile && file != configFile &&\n                !relative.startsWith("build" + File.separator) &&\n                file.name != "esp32-flashing-app.log" &&\n                file.name != "esp32-flashing-app.previous.log"\n        }.toList()
     }
 
     fun relativePath(file: File): String = file.relativeTo(root).path.replace(File.separatorChar, '/')
