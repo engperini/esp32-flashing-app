@@ -130,7 +130,7 @@ class IdfOperationService : Service() {
             val executor = IdfBuildExecutor(applicationContext)
             executor.prepare(target) { SetupState.progress(it) }
             executor.setProjectTarget(projects.projectDir, target) { SetupState.progress(SetupProgress(SetupStep.TOOLCHAIN, "Applying project target $target…", it)) }
-        }.onSuccess { SetupState.success(); AppState.operation(OperationState.IDLE, "ESP-IDF 5.5 / $target ready"); update("ESP-IDF ready") }
+        }.onSuccess { SetupState.progress(SetupProgress(SetupStep.READY, "ESP-IDF 5.5 / $target ready", fraction = 1f, completed = true)); SetupState.success(); AppState.operation(OperationState.IDLE, "ESP-IDF 5.5 / $target ready"); update("ESP-IDF ready") }
             .onFailure {
                 val message = it.message ?: "ESP-IDF setup failed"
                 SetupState.error(message); AppState.operation(OperationState.BUILD_ERROR, message); update("ESP-IDF setup failed")
