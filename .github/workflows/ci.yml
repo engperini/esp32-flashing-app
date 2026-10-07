@@ -39,6 +39,19 @@ jobs:
       - name: Build app-managed runtime engine
         run: |
           git clone --depth 1 https://github.com/oonid/pr.git /tmp/pr
+          # Preserve the actual terminating signal in PtyNative.waitPid().
+          # Upstream collapses every WIFSIGNALED status to -2; encode it as
+          # -(128 + signal), e.g. SIGINT=-130, SIGKILL=-137, SIGTERM=-143.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("/tmp/pr/android/proot-engine/src/main/cpp/ptyjni.c")
+          s = p.read_text()
+          old = "    if (WIFEXITED(status)) return WEXITSTATUS(status);\n    return -2;"
+          new = "    if (WIFEXITED(status)) return WEXITSTATUS(status);\n    if (WIFSIGNALED(status)) return -(128 + WTERMSIG(status));\n    return -2;"
+          if old not in s:
+              raise SystemExit("Unexpected ptyjni.c: waitPid patch anchor not found")
+          p.write_text(s.replace(old, new, 1))
+          PY
           cd /tmp/pr/android
           chmod +x gradlew
           ./gradlew :proot-engine:assembleDebug
