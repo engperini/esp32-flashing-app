@@ -3,6 +3,7 @@ package com.engperini.esp32flashingapp
 import android.content.*
 import android.hardware.usb.UsbManager
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,7 +37,7 @@ class MainActivity:ComponentActivity(){
   }}
  }
  override fun onCreate(savedInstanceState:Bundle?){
-  super.onCreate(savedInstanceState);PersistentDiagnosticLog.append(applicationContext,"ACTIVITY_CREATE",PersistentDiagnosticLog.deviceState(applicationContext))
+  super.onCreate(savedInstanceState);window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);PersistentDiagnosticLog.append(applicationContext,"ACTIVITY_CREATE",PersistentDiagnosticLog.deviceState(applicationContext))
 device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationContext);projects.ensureExampleProject()
   val usbFilter=IntentFilter().apply{addAction(UsbDeviceEngine.ACTION_USB_PERMISSION);addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)}
   ContextCompat.registerReceiver(this,usbReceiver,usbFilter,ContextCompat.RECEIVER_NOT_EXPORTED);if(device.hasDevice())device.connect()
