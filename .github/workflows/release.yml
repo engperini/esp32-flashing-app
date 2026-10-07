@@ -6,11 +6,11 @@ on:
       tag:
         description: Release tag
         required: true
-        default: v0.1.0
+        default: v0.2.0
       run_id:
         description: Successful CI run ID containing the already validated APK
         required: true
-        default: "37267663382"
+        default: "37573184158"
 
 permissions:
   contents: write
@@ -38,4 +38,4 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          gh release create "$TAG" release-apk/esp32-flashing-app.apk             --repo "${{ github.repository }}"             --target 7b88dba21ed8e6285d3677538f1266682885ea92             --title "ESP32 Flashing App $TAG"             --notes "Physically validated Android/ESP32-S3 release. Includes app-managed ESP-IDF 5.5 build environment, native Android USB flash with MD5 verification, automatic exit from ESP32-S3 download mode, USB auto-reconnect, and serial monitor."
+          gh release create "$TAG" release-apk/esp32-flashing-app.apk             --repo "${{ github.repository }}"             --target main             --title "ESP32 Flashing App $TAG"             --notes "Stable physically validated Android release for ESP32-S3 and classic ESP32. Includes app-managed ESP-IDF 5.5, native Android USB flashing with MD5 verification, automatic target-specific post-flash reset, responsive flash progress, USB reconnection, and Serial Monitor. The published APK is the exact artifact from validated CI run #249 (37573184158)."
