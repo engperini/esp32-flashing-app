@@ -46,6 +46,7 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  suspend fun enterBootloader(){requirePort();AppState.operation(OperationState.ENTERING_BOOTLOADER,"Asserting BOOT + RESET");setBootReset(true,true);delay(config.resetPulseMs);setBootReset(true,false);delay(config.bootloaderHoldMs);setBootReset(false,false);AppState.operation(OperationState.BOOTLOADER_READY,"Bootloader ready")}
  suspend fun enterBootloaderEsp32(){requirePort();AppState.operation(OperationState.ENTERING_BOOTLOADER,"Asserting ESP32 BOOT + RESET");setControlLines(false,true);delay(config.resetPulseMs);setControlLines(true,false);delay(config.bootloaderHoldMs);setControlLines(false,false);AppState.operation(OperationState.BOOTLOADER_READY,"ESP32 bootloader ready")}
  suspend fun resetToApplication(){requirePort();AppState.operation(OperationState.RESETTING,"Resetting ESP32");setBootReset(false,true);delay(config.resetPulseMs);setBootReset(false,false);AppState.operation(OperationState.WAITING_APPLICATION,"Waiting for application serial")}
+ suspend fun resetToApplicationEsp32(){requirePort();AppState.operation(OperationState.RESETTING,"Hard resetting ESP32 via RTS/EN");setControlLines(false,true);delay(config.resetPulseMs);setControlLines(false,false);delay(100);AppState.operation(OperationState.WAITING_APPLICATION,"ESP32 reset complete — waiting for application serial")}
  suspend fun reconnectApplication(timeoutMs:Long=6000):Boolean{
   AppState.operation(OperationState.WAITING_APPLICATION,"Reconnecting USB after application reset…")
   disconnect()
