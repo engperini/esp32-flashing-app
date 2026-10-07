@@ -6,6 +6,7 @@ import android.os.PowerManager
 import android.system.Os
 import id.or.oo.pr.engine.ProotHost
 import id.or.oo.pr.engine.ProotLauncher
+import id.or.oo.pr.engine.PtyNative
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -25,6 +26,9 @@ class IdfBuildExecutor(private val context: Context) {
     companion object {
         private const val LOG_TAIL_CHARS = 65536
         private const val UI_TAIL_CHARS = 8192
+        // Android 12+ limits app child/phantom processes while backgrounded.
+        // ESP-IDF/Ninja fan-out can cross that boundary even while our foreground service survives.
+        private const val BUILD_JOBS = 4
     }
 
     private val host = object : ProotHost {
@@ -130,7 +134,7 @@ class IdfBuildExecutor(private val context: Context) {
         val success = "__APP_IDF_BUILD_OK__"
         val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' && " +
             "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh >/dev/null && " +
-            "cd '$guestProject' && idf.py build && echo $success"
+            "cd '$guestProject' && idf.py -j $BUILD_JOBS build && echo $success"
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
 
@@ -168,6 +172,7 @@ class IdfBuildExecutor(private val context: Context) {
         loginArgs += command
         val session = launcher.startCustomSession(loginArgs)
             ?: error("Unable to start " + operation)
+        val sessionPid = PtyNative.getPid()
         activeCancel.set { session.close() }
         if (cancelled.get()) { activeCancel.getAndSet(null)?.invoke(); throw BuildCancelledException() }
         val output = TailBuffer(LOG_TAIL_CHARS)
@@ -197,7 +202,14 @@ class IdfBuildExecutor(private val context: Context) {
             }.takeLast(60).joinToString("\n")
             val cause = when {
                 exitCode != null -> operation + " process exited with code " + exitCode + ".\n" + if (diagnostic.isNotBlank()) diagnostic else tail.takeLast(6000)
-                else -> throw SessionEndedWithoutMarkerException(operation, tail.takeLast(6000) + "\n\n--- Android diagnostic ---\n" + androidDiagnostics())
+                else -> {
+                    val waitStatus = runCatching { PtyNative.waitPid(sessionPid) }.getOrDefault(-3)
+                    throw SessionEndedWithoutMarkerException(
+                        "$operation (PTY pid=$sessionPid waitStatus=$waitStatus)",
+                        tail.takeLast(6000) + "\n\n--- PTY diagnostic ---\npid=$sessionPid\nwaitStatus=$waitStatus\n" +
+                            "waitStatus=-2 means the child terminated by signal\n\n--- Android diagnostic ---\n" + androidDiagnostics()
+                    )
+                }
             }
             error(operation + " failed:\n" + cause)
         }
