@@ -68,6 +68,7 @@ object PersistentDiagnosticLog {
             append(" status=").append(status)
             append(" interactive=").append(power.isInteractive)
             append(" powerSave=").append(power.isPowerSaveMode)
+            append(" deviceIdle=").append(power.isDeviceIdleMode)
             append(" usbDevices=").append(usb.deviceList.size)
             if (usbEventDevice != null) {
                 append(" usbEventVid=").append(usbEventDevice.vendorId)
@@ -76,6 +77,8 @@ object PersistentDiagnosticLog {
             }
             append(" availMemMB=").append(memory.availMem / (1024 * 1024))
             append(" lowMemory=").append(memory.lowMemory)
+            append(" thresholdMB=").append(memory.threshold / (1024 * 1024))
+            append(" appImportance=").append(ActivityManager.RunningAppProcessInfo().also { ActivityManager.getMyMemoryState(it) }.importance)
         }
     }
 
