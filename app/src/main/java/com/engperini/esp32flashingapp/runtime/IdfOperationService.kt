@@ -56,12 +56,18 @@ class IdfOperationService : Service() {
                 Intent.ACTION_POWER_DISCONNECTED -> "POWER_DISCONNECTED"
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> "USB_DEVICE_ATTACHED"
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> "USB_DEVICE_DETACHED"
+                Intent.ACTION_SCREEN_OFF -> "SCREEN_OFF"
+                Intent.ACTION_SCREEN_ON -> "SCREEN_ON"
+                Intent.ACTION_USER_PRESENT -> "USER_PRESENT"
+                PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED -> "DEVICE_IDLE_MODE_CHANGED"
+                PowerManager.ACTION_POWER_SAVE_MODE_CHANGED -> "POWER_SAVE_MODE_CHANGED"
                 else -> return
             }
             PersistentDiagnosticLog.append(
                 applicationContext,
                 event,
-                PersistentDiagnosticLog.deviceState(applicationContext, intent)
+                PersistentDiagnosticLog.deviceState(applicationContext, intent) +
+                    " serviceRunning=$running wakeLockHeld=${wakeLock?.isHeld == true}"
             )
         }
     }
@@ -114,7 +120,7 @@ class IdfOperationService : Service() {
         update("Building $target firmware…")
         val executor = IdfBuildExecutor(applicationContext)
         activeBuildExecutor = executor
-        PersistentDiagnosticLog.append(applicationContext, "BUILD_START", "target=$target")
+        PersistentDiagnosticLog.append(applicationContext, "BUILD_START", "target=$target " + PersistentDiagnosticLog.deviceState(applicationContext) + " wakeLockHeld=${wakeLock?.isHeld == true}")
         runCatching { executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) } }
 .onSuccess {
                 PersistentDiagnosticLog.append(applicationContext, "BUILD_SUCCESS")
@@ -124,7 +130,7 @@ class IdfOperationService : Service() {
                 update(if (requestFlash) "Build completed — reopen app to start Flash" else "Build completed")
                 if (requestFlash) AppState.operation(OperationState.BUILD_SUCCESS, "Build completed — tap Flash to continue safely")
             }.onFailure {
-                PersistentDiagnosticLog.append(applicationContext, "BUILD_FAILURE", it.stackTraceToString().takeLast(12000))
+                PersistentDiagnosticLog.append(applicationContext, "BUILD_FAILURE", PersistentDiagnosticLog.deviceState(applicationContext) + " serviceRunning=$running wakeLockHeld=${wakeLock?.isHeld == true} error=" + it.stackTraceToString().takeLast(12000))
                 if (it is IdfBuildExecutor.BuildCancelledException) {
                     BuildState.cancelled()
                     AppState.operation(OperationState.IDLE, "Build cancelled • partial build preserved")
@@ -183,6 +189,11 @@ class IdfOperationService : Service() {
             addAction(Intent.ACTION_POWER_DISCONNECTED)
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+            addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
+            addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
         }
         registerReceiver(powerUsbReceiver, filter)
         powerUsbReceiverRegistered = true
@@ -207,7 +218,7 @@ class IdfOperationService : Service() {
     }
 
     override fun onDestroy() {
-        PersistentDiagnosticLog.append(applicationContext, "SERVICE_DESTROY", PersistentDiagnosticLog.deviceState(applicationContext))
+        PersistentDiagnosticLog.append(applicationContext, "SERVICE_DESTROY", PersistentDiagnosticLog.deviceState(applicationContext) + " serviceRunning=$running wakeLockHeld=${wakeLock?.isHeld == true}")
         if (powerUsbReceiverRegistered) {
             runCatching { unregisterReceiver(powerUsbReceiver) }
             powerUsbReceiverRegistered = false
