@@ -1,6 +1,11 @@
 package com.engperini.esp32flashingapp.runtime
 
+import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
+import android.hardware.usb.UsbManager
+import android.os.BatteryManager
+import android.os.PowerManager
 import android.os.Process
 import java.io.File
 import java.text.SimpleDateFormat
@@ -42,6 +47,36 @@ object PersistentDiagnosticLog {
             lastBuildSnapshotAt = now
         }
         append(context, "BUILD_OUTPUT", output.takeLast(2048))
+    }
+
+    fun deviceState(context: Context, intent: Intent? = null): String {
+        val battery = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val plugged = battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+        val status = battery?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val level = battery?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = battery?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val percent = if (level >= 0 && scale > 0) level * 100 / scale else -1
+        val power = context.getSystemService(PowerManager::class.java)
+        val usb = context.getSystemService(UsbManager::class.java)
+        val memory = ActivityManager.MemoryInfo().also {
+            context.getSystemService(ActivityManager::class.java).getMemoryInfo(it)
+        }
+        val usbEventDevice = intent?.getParcelableExtra<android.hardware.usb.UsbDevice>(UsbManager.EXTRA_DEVICE)
+        return buildString {
+            append("battery=").append(percent).append('%')
+            append(" plugged=").append(plugged)
+            append(" status=").append(status)
+            append(" interactive=").append(power.isInteractive)
+            append(" powerSave=").append(power.isPowerSaveMode)
+            append(" usbDevices=").append(usb.deviceList.size)
+            if (usbEventDevice != null) {
+                append(" usbEventVid=").append(usbEventDevice.vendorId)
+                append(" usbEventPid=").append(usbEventDevice.productId)
+                append(" usbEventName=").append(usbEventDevice.deviceName)
+            }
+            append(" availMemMB=").append(memory.availMem / (1024 * 1024))
+            append(" lowMemory=").append(memory.lowMemory)
+        }
     }
 
     private fun rotateIfNeeded(file: File) {
