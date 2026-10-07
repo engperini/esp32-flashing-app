@@ -44,6 +44,7 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  }
  fun disconnect(){monitorJob?.cancel();monitorJob=null;runCatching{port?.close()};runCatching{connection?.close()};port=null;connection=null;AppState.device("No ESP32 connected")}
  suspend fun enterBootloader(){requirePort();AppState.operation(OperationState.ENTERING_BOOTLOADER,"Asserting BOOT + RESET");setBootReset(true,true);delay(config.resetPulseMs);setBootReset(true,false);delay(config.bootloaderHoldMs);setBootReset(false,false);AppState.operation(OperationState.BOOTLOADER_READY,"Bootloader ready")}
+ suspend fun enterBootloaderEsp32(){requirePort();AppState.operation(OperationState.ENTERING_BOOTLOADER,"Asserting ESP32 BOOT + RESET");setControlLines(false,true);delay(config.resetPulseMs);setControlLines(true,false);delay(config.bootloaderHoldMs);setControlLines(false,false);AppState.operation(OperationState.BOOTLOADER_READY,"ESP32 bootloader ready")}
  suspend fun resetToApplication(){requirePort();AppState.operation(OperationState.RESETTING,"Resetting ESP32");setBootReset(false,true);delay(config.resetPulseMs);setBootReset(false,false);AppState.operation(OperationState.WAITING_APPLICATION,"Waiting for application serial")}
  suspend fun reconnectApplication(timeoutMs:Long=6000):Boolean{
   AppState.operation(OperationState.WAITING_APPLICATION,"Reconnecting USB after application reset…")
@@ -85,4 +86,5 @@ class UsbDeviceEngine(context:Context,private val config:DeviceConfig=DeviceConf
  private fun requestUsbPermission(device:UsbDevice){val pi=PendingIntent.getBroadcast(appContext,device.deviceId,Intent(ACTION_USB_PERMISSION).setPackage(appContext.packageName),PendingIntent.FLAG_IMMUTABLE);usbManager.requestPermission(device,pi)}
  private fun requirePort():UsbSerialPort=port?:throw IOException("USB device is not connected")
  private fun setBootReset(bootActive:Boolean,resetActive:Boolean){val p=requirePort();val lines=BootResetLineMapper.map(bootActive,resetActive,config);p.setDTR(lines.dtr);p.setRTS(lines.rts)}
+ private fun setControlLines(dtr:Boolean,rts:Boolean){val p=requirePort();p.setDTR(dtr);p.setRTS(rts)}
 }
