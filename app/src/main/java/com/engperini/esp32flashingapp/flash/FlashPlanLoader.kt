@@ -1,5 +1,6 @@
 package com.engperini.esp32flashingapp.flash
 
+import com.engperini.esp32flashingapp.project.SupportedTargets
 import org.json.JSONObject
 import java.io.File
 
@@ -13,9 +14,9 @@ object FlashPlanLoader {
         return parse(buildDir, configFile.readText(), baudRate)
     }
 
-    fun promoteLastGood(projectDir: File) {
+    fun promoteLastGood(projectDir: File, expectedTarget: String? = null) {
         val source = File(projectDir, "build").canonicalFile
-        val plan = loadFromBuild(source)
+        val plan = loadFromBuild(source, expectedTarget = expectedTarget)
         val destination = File(projectDir, ".last-good-flash")
         val staging = File(projectDir, ".last-good-flash.tmp")
         staging.deleteRecursively(); staging.mkdirs()
@@ -34,18 +35,21 @@ object FlashPlanLoader {
         require(staging.renameTo(destination)) { "Unable to promote last valid firmware artifacts" }
     }
 
-    private fun loadFromBuild(buildDir: File, baudRate: Int = 115200): FlashPlan {
+    private fun loadFromBuild(buildDir: File, baudRate: Int = 115200, expectedTarget: String? = null): FlashPlan {
         require(buildDir.isDirectory) { "Build directory not found" }
         val configFile = File(buildDir, "flasher_args.json")
         require(configFile.isFile) { "ESP-IDF flasher_args.json not found" }
-        return parse(buildDir, configFile.readText(), baudRate)
+        return parse(buildDir, configFile.readText(), baudRate, expectedTarget)
     }
 
-    internal fun parse(buildDir: File, json: String, baudRate: Int = 115200): FlashPlan {
+    internal fun parse(buildDir: File, json: String, baudRate: Int = 115200, expectedTarget: String? = null): FlashPlan {
         val root = JSONObject(json)
         val extra = root.getJSONObject("extra_esptool_args")
         val chip = extra.getString("chip")
-        require(chip == "esp32s3") { "Built firmware target is $chip, expected esp32s3" }
+        require(chip in SupportedTargets.values) { "Built firmware target is unsupported: $chip" }
+        if (expectedTarget != null) {
+            require(chip == expectedTarget) { "Built firmware target is $chip, expected $expectedTarget" }
+        }
         val flashFiles = root.getJSONObject("flash_files")
         val images = flashFiles.keys().asSequence().map { address ->
             val relativePath = flashFiles.getString(address)
