@@ -27,9 +27,6 @@ class IdfBuildExecutor(private val context: Context) {
     companion object {
         private const val LOG_TAIL_CHARS = 65536
         private const val UI_TAIL_CHARS = 8192
-        // Android 12+ limits app child/phantom processes while backgrounded.
-        // ESP-IDF/Ninja fan-out can cross that boundary even while our foreground service survives.
-        private const val BUILD_JOBS = 4
     }
 
     private val host = object : ProotHost {
@@ -135,7 +132,7 @@ class IdfBuildExecutor(private val context: Context) {
         val success = "__APP_IDF_BUILD_OK__"
         val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' && " +
             "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh >/dev/null && " +
-            "cd '$guestProject' && IDF_PY_BUILD_JOBS=$BUILD_JOBS idf.py build && echo $success"
+            "cd '$guestProject' && idf.py build && echo $success"
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
 
