@@ -121,10 +121,12 @@ class IdfOperationService : Service() {
         val executor = IdfBuildExecutor(applicationContext)
         activeBuildExecutor = executor
         PersistentDiagnosticLog.append(applicationContext, "BUILD_START", "target=$target " + PersistentDiagnosticLog.deviceState(applicationContext) + " wakeLockHeld=${wakeLock?.isHeld == true}")
-        runCatching { executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) } }
-.onSuccess {
-                PersistentDiagnosticLog.append(applicationContext, "BUILD_SUCCESS")
-                FlashPlanLoader.promoteLastGood(projects.projectDir)
+        runCatching {
+            val buildOutput = executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) }
+            FlashPlanLoader.promoteLastGood(projects.projectDir, expectedTarget = target)
+            buildOutput
+        }.onSuccess {
+                PersistentDiagnosticLog.append(applicationContext, "BUILD_SUCCESS", "target=$target artifactsPromoted=true")
                 BuildState.success(it)
                 AppState.operation(OperationState.BUILD_SUCCESS, "Firmware built successfully • last-good artifacts saved")
                 update(if (requestFlash) "Build completed — reopen app to start Flash" else "Build completed")
