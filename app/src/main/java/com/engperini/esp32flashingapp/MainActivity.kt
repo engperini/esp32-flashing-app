@@ -36,7 +36,8 @@ class MainActivity:ComponentActivity(){
   }}
  }
  override fun onCreate(savedInstanceState:Bundle?){
-  super.onCreate(savedInstanceState);device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationContext);projects.ensureExampleProject()
+  super.onCreate(savedInstanceState);PersistentDiagnosticLog.append(applicationContext,"ACTIVITY_CREATE",PersistentDiagnosticLog.deviceState(applicationContext))
+device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationContext);projects.ensureExampleProject()
   val usbFilter=IntentFilter().apply{addAction(UsbDeviceEngine.ACTION_USB_PERMISSION);addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)}
   ContextCompat.registerReceiver(this,usbReceiver,usbFilter,ContextCompat.RECEIVER_NOT_EXPORTED);if(device.hasDevice())device.connect()
   setContent{MaterialTheme{
@@ -77,7 +78,13 @@ class MainActivity:ComponentActivity(){
    try{FlashState.status("Entering ESP32-S3 ROM bootloader…");device.enterBootloader();FlashState.status("Synchronizing at 115200 baud…");AppState.operation(OperationState.BOOTLOADER_READY,"Synchronizing with ESP32-S3 ROM…");val transport=EspRomTransport(device);check(transport.sync()){"ESP32-S3 ROM did not answer SYNC"};FlashState.status("ESP32-S3 ROM SYNC successful.");transport.flash(plan){FlashState.status(it)};FlashState.status("Flash completed and verified — leaving USB download mode…");transport.watchdogReset();FlashState.success("Flash completed and verified — reconnecting application USB…");device.reconnectApplication()}finally{device.releaseTransport()}
   }.onFailure{val message=it.message?:"Flash failed";FlashState.error(message);AppState.operation(OperationState.FLASH_ERROR,"Flash stopped — see details")}}
  }
- override fun onDestroy(){runCatching{unregisterReceiver(usbReceiver)};device.disconnect();super.onDestroy()}
+ override fun onStart(){super.onStart();PersistentDiagnosticLog.append(applicationContext,"ACTIVITY_START",PersistentDiagnosticLog.deviceState(applicationContext))}
+ override fun onResume(){super.onResume();PersistentDiagnosticLog.append(applicationContext,"ACTIVITY_RESUME",PersistentDiagnosticLog.deviceState(applicationContext))}
+ override fun onPause(){PersistentDiagnosticLog.append(applicationContext,"ACTIVITY_PAUSE",PersistentDiagnosticLog.deviceState(applicationContext));super.onPause()}
+ override fun onStop(){PersistentDiagnosticLog.append(applicationContext,"ACTIVITY_STOP",PersistentDiagnosticLog.deviceState(applicationContext));super.onStop()}
+ override fun onTrimMemory(level:Int){PersistentDiagnosticLog.append(applicationContext,"TRIM_MEMORY","level=$level "+PersistentDiagnosticLog.deviceState(applicationContext));super.onTrimMemory(level)}
+ override fun onLowMemory(){PersistentDiagnosticLog.append(applicationContext,"LOW_MEMORY",PersistentDiagnosticLog.deviceState(applicationContext));super.onLowMemory()}
+ override fun onDestroy(){PersistentDiagnosticLog.append(applicationContext,"ACTIVITY_DESTROY","changingConfigurations=$isChangingConfigurations "+PersistentDiagnosticLog.deviceState(applicationContext));runCatching{unregisterReceiver(usbReceiver)};device.disconnect();super.onDestroy()}
 }
 
 @Composable private fun OperationDialogs(setup:SetupUiState,build:BuildUiState,flash:FlashUiState,onCancelBuild:()->Unit){
