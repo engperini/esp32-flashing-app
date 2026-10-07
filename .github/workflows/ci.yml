@@ -101,6 +101,36 @@ jobs:
           test -f build/esp32-flashing-test.bin
           test -f build/flash_args
           cat build/flash_args
+      - name: Validate ESP-IDF Component Manager dependency resolution
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          rm -rf /tmp/component-manager-proof
+          mkdir -p /tmp/component-manager-proof/main
+          cat > /tmp/component-manager-proof/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(component_manager_proof)
+          EOF
+          cat > /tmp/component-manager-proof/main/CMakeLists.txt <<'EOF'
+          idf_component_register(SRCS "main.c" INCLUDE_DIRS ".")
+          EOF
+          cat > /tmp/component-manager-proof/main/idf_component.yml <<'EOF'
+          dependencies:
+            espressif/esp-lib-utils: "^0.3.0"
+          EOF
+          cat > /tmp/component-manager-proof/main/main.c <<'EOF'
+          #include "freertos/FreeRTOS.h"
+          #include "freertos/task.h"
+          void app_main(void) { while (1) vTaskDelay(pdMS_TO_TICKS(1000)); }
+          EOF
+          cd /tmp/component-manager-proof
+          idf.py set-target esp32
+          idf.py build
+          test -f dependencies.lock
+          test -d managed_components/espressif__esp-lib-utils
+          grep -q "espressif/esp-lib-utils" dependencies.lock
+
       - uses: actions/upload-artifact@v4
         with:
           name: esp-idf-5.5-reference-build
