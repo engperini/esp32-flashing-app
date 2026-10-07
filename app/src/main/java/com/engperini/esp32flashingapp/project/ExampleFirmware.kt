@@ -1,6 +1,10 @@
 package com.engperini.esp32flashingapp.project
 
 object ExampleFirmware {
+ val componentManifest = """
+dependencies:
+  espressif/esp-lib-utils: "^0.3.0"
+""".trimIndent() + "\n"
  val mainC = """
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
