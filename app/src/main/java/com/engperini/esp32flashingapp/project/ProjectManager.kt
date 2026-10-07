@@ -15,6 +15,7 @@ class ProjectManager(context: Context) {
         File(root, "main").mkdirs()
         createIfMissing(File(root, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.16)\ninclude(\u0024ENV{IDF_PATH}/tools/cmake/project.cmake)\nproject(esp32_flashing_app_example)\n")
         createIfMissing(File(root, "main/CMakeLists.txt"), "idf_component_register(SRCS \"main.c\" INCLUDE_DIRS \".\")\n")
+        createIfMissing(File(root, "main/idf_component.yml"), ExampleFirmware.componentManifest)
         createIfMissing(File(root, "sdkconfig.defaults"), "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n")
         createIfMissing(mainFile, ExampleFirmware.mainC)
         if (!configFile.exists()) saveConfig(ProjectConfig("Example", "esp32s3"))
