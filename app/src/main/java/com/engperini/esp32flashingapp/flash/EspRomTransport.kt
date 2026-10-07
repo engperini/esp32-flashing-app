@@ -29,7 +29,17 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
         private const val RTC_CNTL_WDT_WKEY = 0x50D83AA1
     }
 
-    suspend fun sync(): Boolean {
+    suspend fun sync(): Boolean = syncAttempt(1)
+
+    suspend fun syncEsp32(attempts: Int = 7): Boolean {
+        repeat(attempts) {
+            if (syncAttempt(1)) return true
+            delay(100)
+        }
+        return false
+    }
+
+    private suspend fun syncAttempt(attempts: Int): Boolean {
         val payload = ByteArray(36)
         payload[0] = 0x07
         payload[1] = 0x07
@@ -42,12 +52,15 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
             write(0x00); write(0x00); write(0x00); write(0x00)
             write(payload)
         }.toByteArray()
-        device.write(slipEncode(packet), 1500)
-        val buffer = ByteArray(1024)
-        repeat(8) {
-            val n = runCatching { device.read(buffer, 500) }.getOrDefault(0)
-            if (n > 0 && containsSyncResponse(buffer, n)) return true
-            delay(50)
+        repeat(attempts) {
+            device.write(slipEncode(packet), 1500)
+            val buffer = ByteArray(1024)
+            val decoder = SyncResponseDecoder()
+            repeat(8) {
+                val n = runCatching { device.read(buffer, 500) }.getOrDefault(0)
+                if (n > 0 && decoder.accept(buffer, n)) return true
+                delay(50)
+            }
         }
         return false
     }
@@ -151,6 +164,25 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
             } else if (b == SLIP_ESC) escaped = true else frame.write(b)
         }
         return false
+    }
+
+    private class SyncResponseDecoder {
+        private val frame = ByteArrayOutputStream()
+        private var escaped = false
+        fun accept(data: ByteArray, length: Int): Boolean {
+            for (i in 0 until length) {
+                val b = data[i].toInt() and 0xff
+                if (b == SLIP_END) {
+                    val p = frame.toByteArray()
+                    if (p.size >= 2 && (p[0].toInt() and 0xff) == 0x01 && (p[1].toInt() and 0xff) == ESP_SYNC) return true
+                    frame.reset(); escaped = false
+                } else if (escaped) {
+                    frame.write(if (b == SLIP_ESC_END) SLIP_END else if (b == SLIP_ESC_ESC) SLIP_ESC else b)
+                    escaped = false
+                } else if (b == SLIP_ESC) escaped = true else frame.write(b)
+            }
+            return false
+        }
     }
 
     private fun slipEncode(data: ByteArray): ByteArray = ByteArrayOutputStream().apply {
