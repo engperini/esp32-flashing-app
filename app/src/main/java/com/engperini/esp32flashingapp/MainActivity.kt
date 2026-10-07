@@ -73,7 +73,6 @@ device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationCo
  private fun startBuild(){IdfOperationService.build(applicationContext,target())}
  private fun startBuildAndFlash(){IdfOperationService.buildAndFlash(applicationContext,target())}
  private fun startFlash(){
-  if(target()!="esp32s3"){AppState.operation(OperationState.FLASH_ERROR,"Native Flash for "+target()+" is not enabled until its reset path is validated");return}
   lifecycleScope.launch{FlashState.open();AppState.operation(OperationState.PREPARING_BUILD,"Validating existing firmware artifacts…");runCatching{
    val plan=FlashPlanLoader.load(projects.projectDir);FlashState.status("Using existing build: ${plan.images.size} validated flash images at ${plan.baudRate} baud.");FlashState.status("Taking exclusive USB ownership…");device.acquireTransport()
    try{FlashState.status("Entering ESP32-S3 ROM bootloader…");device.enterBootloader();FlashState.status("Synchronizing at 115200 baud…");AppState.operation(OperationState.BOOTLOADER_READY,"Synchronizing with ESP32-S3 ROM…");val transport=EspRomTransport(device);check(transport.sync()){"ESP32-S3 ROM did not answer SYNC"};FlashState.status("ESP32-S3 ROM SYNC successful.");transport.flash(plan){FlashState.status(it)};FlashState.status("Flash completed and verified — leaving USB download mode…");transport.watchdogReset();FlashState.success("Flash completed and verified — reconnecting application USB…");device.reconnectApplication()}finally{device.releaseTransport()}
