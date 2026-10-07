@@ -88,6 +88,14 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
 
 
     suspend fun flash(plan: FlashPlan, onProgress: (String) -> Unit = {}) {
+        flashInternal(plan, onProgress, esp32Rom = false)
+    }
+
+    suspend fun flashEsp32(plan: FlashPlan, onProgress: (String) -> Unit = {}) {
+        flashInternal(plan, onProgress, esp32Rom = true)
+    }
+
+    private suspend fun flashInternal(plan: FlashPlan, onProgress: (String) -> Unit, esp32Rom: Boolean) {
         command(ESP_SPI_ATTACH, le32(0) + byteArrayOf(0, 0, 0, 0), 3000)
         command(ESP_SPI_SET_PARAMS, le32(0) + le32(FLASH_SIZE_BYTES) + le32(64 * 1024) + le32(4 * 1024) + le32(256) + le32(0xFFFF), 3000)
         val total = plan.images.sumOf { File(it.path).length() }
@@ -96,7 +104,8 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
             val data = File(image.path).readBytes()
             val blocks = (data.size + FLASH_WRITE_SIZE - 1) / FLASH_WRITE_SIZE
             onProgress("Image " + (index + 1) + "/" + plan.images.size + ": 0x" + image.address.toString(16) + " • " + data.size + " bytes")
-            command(ESP_FLASH_BEGIN, le32(data.size) + le32(blocks) + le32(FLASH_WRITE_SIZE) + le32(image.address) + le32(0), eraseTimeout(data.size))
+            val flashBegin = le32(data.size) + le32(blocks) + le32(FLASH_WRITE_SIZE) + le32(image.address) + if (esp32Rom) byteArrayOf() else le32(0)
+            command(ESP_FLASH_BEGIN, flashBegin, eraseTimeout(data.size))
             for (seq in 0 until blocks) {
                 val from = seq * FLASH_WRITE_SIZE
                 val count = min(FLASH_WRITE_SIZE, data.size - from)
