@@ -196,8 +196,7 @@ class IdfBuildExecutor(private val context: Context) {
                     s.contains("cannot allocate memory") || s.contains("out of memory")
             }.takeLast(60).joinToString("\n")
             val cause = when {
-                diagnostic.isNotBlank() -> diagnostic
-                exitCode != null -> operation + " process exited with code " + exitCode + ".\n" + tail.takeLast(6000)
+                exitCode != null -> operation + " process exited with code " + exitCode + ".\n" + if (diagnostic.isNotBlank()) diagnostic else tail.takeLast(6000)
                 else -> throw SessionEndedWithoutMarkerException(operation, tail.takeLast(6000) + "\n\n--- Android diagnostic ---\n" + androidDiagnostics())
             }
             error(operation + " failed:\n" + cause)
