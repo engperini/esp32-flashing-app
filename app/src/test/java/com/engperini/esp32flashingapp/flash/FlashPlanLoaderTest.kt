@@ -29,4 +29,35 @@ class FlashPlanLoaderTest {
         assertEquals(listOf(0L,0x8000L,0x10000L),plan.images.map{it.address})
         assertEquals(listOf("bootloader.bin","partition-table.bin","app.bin"),plan.images.map{File(it.path).name})
     }
+    @Test fun parsesOfficialEsp32FlasherArgsStructure() {
+        val build = createTempDirectory("idf-build-esp32").toFile()
+        File(build,"bootloader").mkdirs()
+        File(build,"partition_table").mkdirs()
+        File(build,"bootloader/bootloader.bin").writeBytes(byteArrayOf(1))
+        File(build,"partition_table/partition-table.bin").writeBytes(byteArrayOf(2))
+        File(build,"app.bin").writeBytes(byteArrayOf(3))
+        val json = """{
+          "flash_files":{
+            "0x1000":"bootloader/bootloader.bin",
+            "0x8000":"partition_table/partition-table.bin",
+            "0x10000":"app.bin"
+          },
+          "extra_esptool_args":{"chip":"esp32"}
+        }"""
+        val plan=FlashPlanLoader.parse(build,json,expectedTarget="esp32")
+        assertEquals("esp32",plan.chip)
+        assertEquals(listOf(0x1000L,0x8000L,0x10000L),plan.images.map{it.address})
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsArtifactTargetDifferentFromRequestedTarget() {
+        val build = createTempDirectory("idf-build-mismatch").toFile()
+        File(build,"app.bin").writeBytes(byteArrayOf(1))
+        val json = """{
+          "flash_files":{"0x10000":"app.bin"},
+          "extra_esptool_args":{"chip":"esp32"}
+        }"""
+        FlashPlanLoader.parse(build,json,expectedTarget="esp32s3")
+    }
+
 }
