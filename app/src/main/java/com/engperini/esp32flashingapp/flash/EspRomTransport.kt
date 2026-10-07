@@ -29,7 +29,28 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
         private const val RTC_CNTL_WDT_WKEY = 0x50D83AA1
     }
 
-    suspend fun sync(): Boolean = syncAttempt(1)
+    suspend fun sync(): Boolean {
+        val payload = ByteArray(36)
+        payload[0] = 0x07
+        payload[1] = 0x07
+        payload[2] = 0x12
+        payload[3] = 0x20
+        for (i in 4 until payload.size) payload[i] = 0x55
+        val packet = ByteArrayOutputStream().apply {
+            write(0x00); write(ESP_SYNC)
+            write(payload.size and 0xff); write((payload.size ushr 8) and 0xff)
+            write(0x00); write(0x00); write(0x00); write(0x00)
+            write(payload)
+        }.toByteArray()
+        device.write(slipEncode(packet), 1500)
+        val buffer = ByteArray(1024)
+        repeat(8) {
+            val n = runCatching { device.read(buffer, 500) }.getOrDefault(0)
+            if (n > 0 && containsSyncResponse(buffer, n)) return true
+            delay(50)
+        }
+        return false
+    }
 
     suspend fun syncEsp32(attempts: Int = 7): Boolean {
         repeat(attempts) {
