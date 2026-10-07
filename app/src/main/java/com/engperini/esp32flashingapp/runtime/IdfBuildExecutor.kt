@@ -134,7 +134,7 @@ class IdfBuildExecutor(private val context: Context) {
         val success = "__APP_IDF_BUILD_OK__"
         val command = "export IDF_TOOLS_PATH='${IdfRuntimePlan.IDF_TOOLS_PATH}' IDF_PATH='${IdfRuntimePlan.IDF_PATH}' && " +
             "cd '${IdfRuntimePlan.IDF_PATH}' && . ./export.sh >/dev/null && " +
-            "cd '$guestProject' && idf.py -j $BUILD_JOBS build && echo $success"
+            "cd '$guestProject' && IDF_PY_BUILD_JOBS=$BUILD_JOBS idf.py build && echo $success"
         executeStage(launcher, cli, command, success, onOutput, "Build")
     }
 
