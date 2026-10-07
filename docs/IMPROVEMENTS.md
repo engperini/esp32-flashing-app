@@ -2,6 +2,10 @@
 
 Only current, actionable work belongs here. Remove an item after it is implemented and physically/functionally validated. Each item must describe the current limitation and the expected result; implementation jargon alone is not sufficient.
 
+## Priority 1 — ESP-IDF Component Manager compatibility
+
+- **Support and physically validate external ESP-IDF dependencies exactly as on a PC.** Project files already allow arbitrary text files and the Build already runs the project's normal `idf.py build` inside the ESP-IDF 5.5 environment. Make `main/idf_component.yml` part of the bundled Example project and keep it editable in the Project editor. The app must not implement its own dependency resolver: ESP-IDF Component Manager must read the manifest during CMake, resolve/download Registry or Git dependencies, generate/update `dependencies.lock`, populate `managed_components/`, and then compile/link them normally. Validate this on Android with a small official Espressif Registry component that is actually referenced by the Example firmware, not merely downloaded. Preserve `dependencies.lock` as an ESP-IDF-generated project file and never hand-edit it; treat `managed_components/` as generated dependency cache rather than user source. Acceptance: starting from a project without the dependency cached, Build visibly resolves/downloads it, creates the expected Component Manager outputs, compiles/links the firmware, and the resulting firmware passes the existing native Flash/reset/Serial flow on physical ESP32 hardware. Do not modify the validated ESP32 or ESP32-S3 USB/flash/reset protocols for this work.
+
 ## ESP-IDF setup and build
 
 - **Cancel ESP-IDF Configure safely.** The Build operation already has a validated Cancel path, but Configure/Setup does not expose equivalent cancellation. Add cancellation for an active provisioning/download/install session without deleting stages that were already completed successfully. Starting Configure again must resume from the first incomplete stage.
