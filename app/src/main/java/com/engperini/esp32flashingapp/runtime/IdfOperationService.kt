@@ -136,10 +136,14 @@ class IdfOperationService : Service() {
                     AppState.operation(OperationState.IDLE, "Build cancelled • partial build preserved")
                     update("Build cancelled")
                 } else {
-                    val message = it.message ?: "Build failed"
+                    val rawMessage = it.message ?: "Build failed"
+                    val phantomKill = rawMessage.contains("waitStatus=-137") || rawMessage.contains("SIGKILL(9)")
+                    val message = if (phantomKill)
+                        "Build was terminated by Android (SIGKILL 9 / exit 137). This matches Android child/phantom process restrictions. Keep the app in the foreground with the screen on, or enable Developer options > Disable child process restrictions."
+                    else rawMessage
                     BuildState.error(message)
-                    AppState.operation(OperationState.BUILD_ERROR, "Build failed — see Build details")
-                    update("Build failed")
+                    AppState.operation(OperationState.BUILD_ERROR, if (phantomKill) "Build killed by Android child-process restriction" else "Build failed — see Build details")
+                    update(if (phantomKill) "Build killed by Android" else "Build failed")
                 }
             }
         activeBuildExecutor = null
