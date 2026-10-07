@@ -31,6 +31,7 @@ Reference platform:
 - Android 16 / arm64-v8a
 - ESP-IDF 5.5
 - Seeed Studio XIAO ESP32-S3
+- Classic ESP32 (physical hardware validation)
 
 Validated on a physical Android phone:
 
@@ -43,7 +44,10 @@ Validated on a physical Android phone:
 - reference firmware runs physically after flash: GPIO21 built-in LED heartbeat and one serial status line per second;
 - automatic watchdog reset exits ESP32-S3 USB download mode after flash;
 - automatic USB detection/reconnection continues after Android permission is granted;
-- automatic ESP32-S3 ROM bootloader entry.
+- automatic ESP32-S3 ROM bootloader entry;
+- classic ESP32 build, ROM bootloader entry, native flash write, MD5 verification and automatic RTS/EN hard reset;
+- flash transport runs off the Android UI thread so progress remains responsive during USB writes;
+- physically validated classic ESP32 firmware execution and Serial Monitor after automatic post-flash reset.
 
 The end-to-end build, native flash, automatic post-flash boot, USB reconnection, firmware execution and serial monitor paths are physically validated on the reference hardware.
 
@@ -53,7 +57,7 @@ The end-to-end build, native flash, automatic post-flash boot, USB reconnection,
 - **Storage:** several GB of free internal storage are required for the managed Debian runtime, ESP-IDF 5.5, target toolchain and project builds. A precise minimum will be published after final packaging measurements; the app will gain a free-space preflight before setup.
 - **Network:** internet access is required for the first ESP-IDF/target setup. Once provisioned, normal builds can run offline.
 - **USB:** Android USB Host/OTG support plus a data-capable USB cable is required for Flash and Serial Monitor. Build itself does not require the board to be connected.
-- **Target:** ESP32-S3 is the current validated target; Seeed Studio XIAO ESP32-S3 is the physical reference board.
+- **Targets:** ESP32-S3 and classic ESP32 are physically validated. Seeed Studio XIAO ESP32-S3 remains the S3 reference board.
 
 ## Download the Android app
 
@@ -78,7 +82,7 @@ git clone https://github.com/engperini/esp32-flashing-app.git
 cd esp32-flashing-app
 ```
 
-The canonical CI definition is `.github/workflows/ci.yml`. It uses Java 17, Android SDK platform/build-tools 34, Gradle 8.11.1, builds the maintained `oonid/pr` Android PRoot engine, runs the Android unit tests, builds the APK, and verifies the reproducible public AOSP test-key signature. The same workflow also builds the ESP-IDF 5.5 ESP32-S3 reference firmware and validates the ARM64 runtime payload.
+The canonical CI definition is `.github/workflows/ci.yml`. It uses Java 17, Android SDK platform/build-tools 34, Gradle 8.11.1, builds the maintained `oonid/pr` Android PRoot engine, runs the Android unit tests, builds the APK, and verifies the reproducible public AOSP test-key signature. The same workflow also validates the ESP-IDF 5.5 reference firmware/toolchain path and the ARM64 runtime payload.
 
 For an exact reproducible reference, use the versions and commands pinned in `.github/workflows/ci.yml` rather than relying on workstation-global Android/Gradle configuration.
 
@@ -89,7 +93,7 @@ Releases are produced by `.github/workflows/release.yml`. That workflow **does n
 The first ESP-IDF configuration requires an internet connection and significantly more time and storage than later runs.
 
 1. Open the app.
-2. Select the ESP target. The current reference target is **ESP32-S3**.
+2. Select the ESP target: **ESP32-S3** or **ESP32**.
 3. Tap **Configure ESP-IDF**.
 4. Keep the setup screen open while the current development build prepares its private Linux environment, ESP-IDF 5.5 and the target toolchain. Background-safe execution is a required MVP item and is not complete yet.
 5. Follow the live setup status and log until the environment reports ready.
@@ -104,7 +108,7 @@ Connect the ESP32 by USB and grant Android USB permission when requested.
 - **Build** — compile the current project and generate the firmware binaries. USB is not required.
 - **Flash** — flash an already completed and validated build without compiling it again.
 - **Build & Flash** — build the current source first and flash only after a successful build.
-- **Doctor** — validate the installed ESP-IDF 5.5 environment and ESP32-S3 compiler.
+- **Doctor** — validate the installed ESP-IDF 5.5 environment and selected target compiler.
 - **Configure ESP-IDF** — install or prepare the managed build environment.
 
 The Serial Monitor uses Android's native USB connection. Build execution and USB transport are intentionally separate.
