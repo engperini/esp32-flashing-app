@@ -2,7 +2,11 @@ package com.engperini.esp32flashingapp.runtime
 
 import android.app.*
 import android.content.Context
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbManager
+import android.os.BatteryManager
 import android.os.IBinder
 import android.os.PowerManager
 import com.engperini.esp32flashingapp.flash.FlashPlanLoader
@@ -43,10 +47,29 @@ class IdfOperationService : Service() {
     @Volatile private var running = false
     @Volatile private var activeBuildExecutor: IdfBuildExecutor? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var powerUsbReceiverRegistered = false
+
+    private val powerUsbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val event = when (intent.action) {
+                Intent.ACTION_POWER_CONNECTED -> "POWER_CONNECTED"
+                Intent.ACTION_POWER_DISCONNECTED -> "POWER_DISCONNECTED"
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> "USB_DEVICE_ATTACHED"
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> "USB_DEVICE_DETACHED"
+                else -> return
+            }
+            PersistentDiagnosticLog.append(
+                applicationContext,
+                event,
+                PersistentDiagnosticLog.deviceState(applicationContext, intent)
+            )
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
-        PersistentDiagnosticLog.append(applicationContext, "SERVICE_CREATE")
+        PersistentDiagnosticLog.append(applicationContext, "SERVICE_CREATE", PersistentDiagnosticLog.deviceState(applicationContext))
+        registerPowerUsbDiagnostics()
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "ESP-IDF operations", NotificationManager.IMPORTANCE_LOW))
     }
@@ -154,6 +177,18 @@ class IdfOperationService : Service() {
             }
     }
 
+    private fun registerPowerUsbDiagnostics() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        }
+        registerReceiver(powerUsbReceiver, filter)
+        powerUsbReceiverRegistered = true
+        PersistentDiagnosticLog.append(applicationContext, "POWER_USB_MONITOR_READY", PersistentDiagnosticLog.deviceState(applicationContext))
+    }
+
     private fun update(text: String) {
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text))
     }
@@ -171,6 +206,16 @@ class IdfOperationService : Service() {
             .build()
     }
 
-    override fun onDestroy() { PersistentDiagnosticLog.append(applicationContext, "SERVICE_DESTROY"); if (wakeLock?.isHeld == true) wakeLock?.release(); wakeLock = null; scope.cancel(); super.onDestroy() }
+    override fun onDestroy() {
+        PersistentDiagnosticLog.append(applicationContext, "SERVICE_DESTROY", PersistentDiagnosticLog.deviceState(applicationContext))
+        if (powerUsbReceiverRegistered) {
+            runCatching { unregisterReceiver(powerUsbReceiver) }
+            powerUsbReceiverRegistered = false
+        }
+        if (wakeLock?.isHeld == true) wakeLock?.release()
+        wakeLock = null
+        scope.cancel()
+        super.onDestroy()
+    }
     override fun onBind(intent: Intent?): IBinder? = null
 }
