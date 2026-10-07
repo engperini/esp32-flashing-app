@@ -14,11 +14,6 @@ Only current, actionable improvements are kept here. Remove an item when it is i
 - Add rename and delete operations to the Project file explorer.
 - Add project import/export using a portable ESP-IDF project format.
 
-## Build & Flash
-
-- Make **Build & Flash** a true chained operation: Build must complete successfully, promote the new last-good artifact set, then start native Flash automatically. A failed or cancelled Build must never start Flash.
-- Keep target-specific native Flash/reset behavior isolated. ESP32-S3 is the validated baseline; ESP32 classic must be physically validated before being marked supported for Flash.
-
 ## Flash artifact integrity
 
 - Make replacement of the last-good flash artifact set atomic so an interrupted promotion cannot leave a partially replaced set.
