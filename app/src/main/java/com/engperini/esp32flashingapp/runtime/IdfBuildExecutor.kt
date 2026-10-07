@@ -20,6 +20,7 @@ class IdfBuildExecutor(private val context: Context) {
     private val activeCancel = AtomicReference<(() -> Unit)?>(null)
 
     fun cancelCurrentBuild() {
+        PersistentDiagnosticLog.append(context.applicationContext, "BUILD_CANCEL_REQUEST", "caller=cancelCurrentBuild " + androidDiagnostics().replace('\n', ' '))
         cancelled.set(true)
         runCatching { activeCancel.getAndSet(null)?.invoke() }
     }
@@ -204,10 +205,19 @@ class IdfBuildExecutor(private val context: Context) {
                 exitCode != null -> operation + " process exited with code " + exitCode + ".\n" + if (diagnostic.isNotBlank()) diagnostic else tail.takeLast(6000)
                 else -> {
                     val waitStatus = runCatching { PtyNative.waitPid(sessionPid) }.getOrDefault(-3)
+                    val signal = if (waitStatus <= -129) -waitStatus - 128 else null
+                    val signalName = signal?.let(::signalName)
+                    PersistentDiagnosticLog.append(
+                        context.applicationContext,
+                        "PTY_EXIT",
+                        "operation=$operation pid=$sessionPid waitStatus=$waitStatus signal=${signal ?: "unknown"} signalName=${signalName ?: "unknown"} cancelled=${cancelled.get()}"
+                    )
                     throw SessionEndedWithoutMarkerException(
-                        "$operation (PTY pid=$sessionPid waitStatus=$waitStatus)",
+                        "$operation (PTY pid=$sessionPid waitStatus=$waitStatus" +
+                            (if (signal != null) " signal=$signalName($signal)" else "") + ")",
                         tail.takeLast(6000) + "\n\n--- PTY diagnostic ---\npid=$sessionPid\nwaitStatus=$waitStatus\n" +
-                            "waitStatus=-2 means the child terminated by signal\n\n--- Android diagnostic ---\n" + androidDiagnostics()
+                            (if (signal != null) "signal=$signalName($signal)\n" else "signal=unknown\n") +
+                            "cancelled=${cancelled.get()}\n\n--- Android diagnostic ---\n" + androidDiagnostics()
                     )
                 }
             }
@@ -250,6 +260,18 @@ class IdfBuildExecutor(private val context: Context) {
             append("appHeapUsedMB=").append((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)).append('\n')
             append("appHeapMaxMB=").append(runtime.maxMemory() / (1024 * 1024))
         }
+    }
+
+    private fun signalName(signal: Int): String = when (signal) {
+        1 -> "SIGHUP"
+        2 -> "SIGINT"
+        3 -> "SIGQUIT"
+        6 -> "SIGABRT"
+        9 -> "SIGKILL"
+        11 -> "SIGSEGV"
+        13 -> "SIGPIPE"
+        15 -> "SIGTERM"
+        else -> "SIG$signal"
     }
 
     private fun shQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
