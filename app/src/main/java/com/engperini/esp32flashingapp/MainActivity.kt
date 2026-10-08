@@ -64,13 +64,14 @@ device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationCo
     saveFeedback=saveFeedback,
     onCreateFile={path->runCatching{projects.createFile(path)}.onSuccess{files=projects.listFiles().map(projects::relativePath);selectedFile=path;editorText=""}.onFailure{AppState.operation(OperationState.BUILD_ERROR,it.message?:"Unable to create file")}},
     onCreateFolder={path->runCatching{projects.createDirectory(path)}.onSuccess{files=projects.listFiles().map(projects::relativePath)}.onFailure{AppState.operation(OperationState.BUILD_ERROR,it.message?:"Unable to create folder")}},
-    onConfigure={configureIdf()},onDoctor={runDoctor()},onFullClean={runFullClean()},onExportLog={exportLog.launch("esp32-flashing-app.log")}
+    onConfigure={configureIdf()},onDoctor={runDoctor()},onFullClean={runFullClean()},onReconfigure={runReconfigure()},onRefreshFiles={files=projects.listFiles().map(projects::relativePath)},onExportLog={exportLog.launch("esp32-flashing-app.log")}
    )
   }}
  }
  private fun target()=projects.config().target
  private fun configureIdf(){IdfOperationService.setup(applicationContext,target())}
  private fun runDoctor(){IdfOperationService.doctor(applicationContext,target())}
+ private fun runReconfigure(){IdfOperationService.reconfigure(applicationContext,target())}
  private fun runFullClean(){IdfOperationService.fullClean(applicationContext,target())}
  private fun startBuild(){IdfOperationService.build(applicationContext,target())}
  private fun startBuildAndFlash(){IdfOperationService.buildAndFlash(applicationContext,target())}
