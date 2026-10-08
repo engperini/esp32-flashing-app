@@ -7,10 +7,32 @@ import java.security.MessageDigest
 
 class ProjectManager(context: Context) {
     private val projectsRoot = File(context.filesDir, "projects")
-    private val root = File(projectsRoot, "example")
-    private val configFile = File(root, ".esp32-flashing-app.json")
-    val mainFile = File(root, "main/main.c")
+    private val prefs = context.getSharedPreferences("project_selection", Context.MODE_PRIVATE)
+    private var pinnedProject: String? = null
+    private val root: File get() = File(projectsRoot, pinnedProject ?: selectedProjectId())
+    private val configFile: File get() = File(root, ".esp32-flashing-app.json")
+    val mainFile: File get() = File(root, "main/main.c")
     val projectDir: File get() = root
+
+    fun selectedProjectId(): String = pinnedProject ?: prefs.getString("selected", "example") ?: "example"
+
+    fun projectIds(): List<String> {
+        ensureExampleProject()
+        return projectsRoot.listFiles()?.filter { it.isDirectory && File(it, ".esp32-flashing-app.json").isFile }
+            ?.map { it.name }?.sorted() ?: emptyList()
+    }
+
+    fun selectProject(id: String) {
+        require(id.matches(Regex("[a-zA-Z0-9_-]+"))) { "Invalid project identifier" }
+        require(File(projectsRoot, "$id/.esp32-flashing-app.json").isFile) { "Project not found: $id" }
+        prefs.edit().putString("selected", id).apply()
+    }
+
+    fun pinned(id: String): ProjectManager {
+        require(id.matches(Regex("[a-zA-Z0-9_-]+"))) { "Invalid project identifier" }
+        require(File(projectsRoot, "$id/.esp32-flashing-app.json").isFile) { "Project not found: $id" }
+        return ProjectManager(context).also { it.pinnedProject = id }
+    }
 
     fun ensureExampleProject(): File {
         File(root, "main").mkdirs()
@@ -19,8 +41,26 @@ class ProjectManager(context: Context) {
         createIfMissing(File(root, "main/idf_component.yml"), ExampleFirmware.componentManifest)
         createIfMissing(File(root, "sdkconfig.defaults"), "# Use ESP-IDF target defaults for console and USB; board-specific settings are optional.\n")
         createIfMissing(mainFile, ExampleFirmware.mainC)
-        if (!configFile.exists()) saveConfig(ProjectConfig("Example", "esp32s3"))
+        if (!configFile.exists()) saveConfig(ProjectConfig(if (root.name == "example") "Existing project" else root.name, "esp32s3"))
+        ensureTemplate("hello-world", "Hello World", ExampleFirmware.mainC, "esp32s3", false)
+        ensureTemplate("servo-pca9685", "Servo PCA9685", ServoFirmware.mainC, "esp32", true)
         return root
+    }
+
+    private fun ensureTemplate(id: String, name: String, main: String, target: String, servo: Boolean) {
+        val dir = File(projectsRoot, id)
+        if (dir.exists()) return // Never touch a pre-existing project.
+        require(dir.mkdirs()) { "Unable to create project: $id" }
+        File(dir, "main").mkdirs()
+        File(dir, "CMakeLists.txt").writeText("cmake_minimum_required(VERSION 3.16)\ninclude(\u0024ENV{IDF_PATH}/tools/cmake/project.cmake)\nproject(" + id.replace('-', '_') + ")\n")
+        File(dir, "main/CMakeLists.txt").writeText(
+            if (servo) "idf_component_register(SRCS \"main.c\" REQUIRES driver INCLUDE_DIRS \".\")\n"
+            else "idf_component_register(SRCS \"main.c\" PRIV_REQUIRES spi_flash INCLUDE_DIRS \".\")\n"
+        )
+        File(dir, "main/idf_component.yml").writeText(ExampleFirmware.componentManifest)
+        File(dir, "sdkconfig.defaults").writeText(if (servo) "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n" else "# Target defaults\n")
+        File(dir, "main/main.c").writeText(main)
+        File(dir, ".esp32-flashing-app.json").writeText(JSONObject().put("name", name).put("target", target).toString(2))
     }
 
     fun config(): ProjectConfig {
