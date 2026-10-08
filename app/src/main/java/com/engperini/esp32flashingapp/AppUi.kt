@@ -48,6 +48,8 @@ fun MainShell(
     onConfigure: () -> Unit,
     onDoctor: () -> Unit,
     onFullClean: () -> Unit,
+    onReconfigure: () -> Unit,
+    onRefreshFiles: () -> Unit,
     onExportLog: () -> Unit
 ) {
     Scaffold(
@@ -62,8 +64,8 @@ fun MainShell(
     ) { padding ->
         when(section) {
             AppSection.HARDWARE -> HardwareScreen(state, project, connected, onTarget, onConnect, onDisconnect, onBootloader, onReset, onBuild, onFlash, onBuildFlash, onStartMonitor, onStopMonitor, onClearSerial, Modifier.padding(padding))
-            AppSection.PROJECT -> ProjectScreen(files, selectedFile, editorText, onSelectFile, onEditorText, onSaveFile, saveFeedback, onCreateFile, onCreateFolder, Modifier.padding(padding))
-            AppSection.SETTINGS -> SettingsScreen(project, onConfigure, onDoctor, onFullClean, onExportLog, Modifier.padding(padding))
+            AppSection.PROJECT -> ProjectScreen(files, selectedFile, editorText, onSelectFile, onEditorText, onSaveFile, saveFeedback, onCreateFile, onCreateFolder, onRefreshFiles, Modifier.padding(padding))
+            AppSection.SETTINGS -> SettingsScreen(project, onConfigure, onDoctor, onFullClean, onReconfigure, onExportLog, Modifier.padding(padding))
         }
     }
 }
@@ -104,11 +106,11 @@ fun MainShell(
     }
 }
 
-@Composable private fun ProjectScreen(files:List<String>,selectedFile:String,editorText:String,onSelectFile:(String)->Unit,onEditorText:(String)->Unit,onSaveFile:()->Unit,saveFeedback:String,onCreateFile:(String)->Unit,onCreateFolder:(String)->Unit,modifier:Modifier){
+@Composable private fun ProjectScreen(files:List<String>,selectedFile:String,editorText:String,onSelectFile:(String)->Unit,onEditorText:(String)->Unit,onSaveFile:()->Unit,saveFeedback:String,onCreateFile:(String)->Unit,onCreateFolder:(String)->Unit,onRefreshFiles:()->Unit,modifier:Modifier){
     var newKind by remember { mutableStateOf<String?>(null) };var newPath by remember { mutableStateOf("") }
     if(newKind!=null) AlertDialog(onDismissRequest={newKind=null},title={Text("New "+newKind)},text={OutlinedTextField(newPath,{newPath=it},label={Text("Path inside project")},singleLine=true)},confirmButton={Button(onClick={if(newKind=="file")onCreateFile(newPath) else onCreateFolder(newPath);newPath="";newKind=null}){Text("Create")}},dismissButton={TextButton(onClick={newKind=null}){Text("Cancel")}})
     Column(modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text("Project",style=MaterialTheme.typography.titleLarge);Text("ESP-IDF project files",style=MaterialTheme.typography.bodySmall)};Row{TextButton(onClick={newKind="file"}){Text("+ File")};TextButton(onClick={newKind="folder"}){Text("+ Folder")}}}
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text("Project",style=MaterialTheme.typography.titleLarge);Text("ESP-IDF project files",style=MaterialTheme.typography.bodySmall)};Row{TextButton(onClick={newKind="file"}){Text("+ File")};TextButton(onClick={newKind="folder"}){Text("+ Folder")};TextButton(onClick=onRefreshFiles){Text("Refresh")}}}
         Surface(Modifier.fillMaxWidth().heightIn(max=190.dp),tonalElevation=1.dp){Column(Modifier.verticalScroll(rememberScrollState()).padding(8.dp)){files.forEach{path->TextButton(onClick={onSelectFile(path)},modifier=Modifier.fillMaxWidth()){Text(if(path==selectedFile)"●  "+path else "   "+path,modifier=Modifier.fillMaxWidth())}}}}
         Text(selectedFile.ifBlank{"Select a file"},style=MaterialTheme.typography.titleMedium)
         OutlinedTextField(editorText,onEditorText,enabled=selectedFile.isNotBlank(),modifier=Modifier.fillMaxWidth().weight(1f),textStyle=LocalTextStyle.current.copy(fontFamily=FontFamily.Monospace),label={Text("Editor")})
@@ -117,10 +119,10 @@ fun MainShell(
     }
 }
 
-@Composable private fun SettingsScreen(project:ProjectConfig,onConfigure:()->Unit,onDoctor:()->Unit,onFullClean:()->Unit,onExportLog:()->Unit,modifier:Modifier){
+@Composable private fun SettingsScreen(project:ProjectConfig,onConfigure:()->Unit,onDoctor:()->Unit,onFullClean:()->Unit,onReconfigure:()->Unit,onExportLog:()->Unit,modifier:Modifier){
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         Text("Settings",style=MaterialTheme.typography.headlineSmall)
-        Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("ESP-IDF Environment",style=MaterialTheme.typography.titleMedium);Text("ESP-IDF 5.5 • "+SupportedTargets.label(project.target));Button(onClick=onConfigure,modifier=Modifier.fillMaxWidth()){Text("Configure ESP-IDF")};OutlinedButton(onClick=onDoctor,modifier=Modifier.fillMaxWidth()){Text("Doctor")};OutlinedButton(onClick=onFullClean,modifier=Modifier.fillMaxWidth()){Text("Full Clean")};Text("Full Clean removes only ESP-IDF build output. Project source files are preserved.",style=MaterialTheme.typography.bodySmall)}}
+        Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("ESP-IDF Environment",style=MaterialTheme.typography.titleMedium);Text("ESP-IDF 5.5 • "+SupportedTargets.label(project.target));Button(onClick=onConfigure,modifier=Modifier.fillMaxWidth()){Text("Configure ESP-IDF")};OutlinedButton(onClick=onDoctor,modifier=Modifier.fillMaxWidth()){Text("Doctor")};OutlinedButton(onClick=onReconfigure,modifier=Modifier.fillMaxWidth()){Text("Reconfigure")};OutlinedButton(onClick=onFullClean,modifier=Modifier.fillMaxWidth()){Text("Full Clean")};Text("Full Clean removes only ESP-IDF build output. Project source files are preserved.",style=MaterialTheme.typography.bodySmall)}}
         Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("Diagnostics",style=MaterialTheme.typography.titleMedium);OutlinedButton(onClick=onExportLog,modifier=Modifier.fillMaxWidth()){Text("Export Diagnostic Log")};Text("Saves the persistent diagnostic log without loading it into the editor.",style=MaterialTheme.typography.bodySmall)}}
     }
 }
