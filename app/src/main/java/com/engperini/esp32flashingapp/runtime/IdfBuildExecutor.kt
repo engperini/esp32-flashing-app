@@ -121,6 +121,21 @@ class IdfBuildExecutor(private val context: Context) {
         executeStage(launcher, cli, command, success, onOutput, "Full Clean", listOf(project.canonicalPath + ":" + guestProject))
     }
 
+    suspend fun reconfigure(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
+        requireTarget(target)
+        require(project.isDirectory) { "Project directory not found: $project" }
+        val rootfs = File(host.prefixDir, "var/lib/pr/containers/${IdfRuntimePlan.GUEST_ALIAS}/rootfs")
+        IdfBuildStages.stages(target).forEach { require(IdfBuildStages.isComplete(rootfs, it)) { "Environment is not ready: ${it.name}" } }
+        val launcher = ProotLauncher(host)
+        val cli = prepareLauncher()
+        val guestProject = project.absolutePath
+        val success = "__APP_IDF_RECONFIGURE_OK__"
+        val command = "export IDF_TOOLS_PATH=" + shQuote(IdfRuntimePlan.IDF_TOOLS_PATH) + " IDF_PATH=" + shQuote(IdfRuntimePlan.IDF_PATH) + " && " +
+            "cd " + shQuote(IdfRuntimePlan.IDF_PATH) + " && . ./export.sh >/dev/null && " +
+            "cd " + shQuote(guestProject) + " && idf.py reconfigure && echo " + success
+        executeStage(launcher, cli, command, success, onOutput, "Reconfigure")
+    }
+
     suspend fun buildPrepared(project: File, target: String, onOutput: (String) -> Unit = {}): String = withContext(Dispatchers.IO) {
         cancelled.set(false)
         require(project.isDirectory) { "Project directory not found: $project" }
