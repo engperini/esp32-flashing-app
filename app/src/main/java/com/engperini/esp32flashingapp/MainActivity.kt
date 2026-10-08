@@ -47,12 +47,28 @@ device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationCo
    val state by AppState.state.collectAsStateWithLifecycle();val setup by SetupState.state.collectAsStateWithLifecycle();val build by BuildState.state.collectAsStateWithLifecycle();val flash by FlashState.state.collectAsStateWithLifecycle()
    var section by remember{mutableStateOf(AppSection.HARDWARE)}
    var project by remember{mutableStateOf(projects.config())}
+   var projectIds by remember{mutableStateOf(projects.projectIds())}
+   var selectedProjectId by remember{mutableStateOf(projects.selectedProjectId())}
    var files by remember{mutableStateOf(projects.listFiles().map(projects::relativePath))}
    var selectedFile by remember{mutableStateOf("main/main.c")}
    var editorText by remember{mutableStateOf(projects.read(selectedFile))}
    var saveFeedback by remember{mutableStateOf("")}
    OperationDialogs(setup,build,flash,onCancelBuild={IdfOperationService.cancelBuild(applicationContext)})
-   MainShell(state,project,section,{section=it},device.isConnected(),files,selectedFile,editorText,
+   MainShell(state,project,projectIds,selectedProjectId,
+    onProjectSelect={id->
+     if (id != selectedProjectId && !build.visible && !setup.visible && !flash.visible) {
+      projects.selectProject(id)
+      selectedProjectId=id
+      project=projects.config()
+      files=projects.listFiles().map(projects::relativePath)
+      selectedFile=if("main/main.c" in files) "main/main.c" else files.firstOrNull().orEmpty()
+      editorText=if(selectedFile.isBlank()) "" else projects.read(selectedFile)
+      saveFeedback=""
+      AppState.operation(OperationState.IDLE,"Selected project: "+project.name)
+     } else if (id != selectedProjectId) {
+      AppState.operation(OperationState.PREPARING_BUILD,"Wait for the active operation to finish before changing projects")
+     }
+    },section,{section=it},device.isConnected(),files,selectedFile,editorText,
     onTarget={target->if(target!=project.target){projects.setTarget(target);project=projects.config();AppState.operation(OperationState.IDLE,"Target changed to $target • Configure ESP-IDF before building")}},
     onConnect={device.connect()},onDisconnect={device.disconnect()},
     onBootloader={lifecycleScope.launch{runCatching{device.enterBootloader()}.onFailure{AppState.operation(OperationState.BOOTLOADER_ERROR,it.message?:"Bootloader failed")}}},
@@ -69,12 +85,12 @@ device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationCo
   }}
  }
  private fun target()=projects.config().target
- private fun configureIdf(){IdfOperationService.setup(applicationContext,target())}
- private fun runDoctor(){IdfOperationService.doctor(applicationContext,target())}
- private fun runReconfigure(){IdfOperationService.reconfigure(applicationContext,target())}
- private fun runFullClean(){IdfOperationService.fullClean(applicationContext,target())}
- private fun startBuild(){IdfOperationService.build(applicationContext,target())}
- private fun startBuildAndFlash(){IdfOperationService.buildAndFlash(applicationContext,target())}
+ private fun configureIdf(){IdfOperationService.setup(applicationContext,target(),projects.selectedProjectId())}
+ private fun runDoctor(){IdfOperationService.doctor(applicationContext,target(),projects.selectedProjectId())}
+ private fun runReconfigure(){IdfOperationService.reconfigure(applicationContext,target(),projects.selectedProjectId())}
+ private fun runFullClean(){IdfOperationService.fullClean(applicationContext,target(),projects.selectedProjectId())}
+ private fun startBuild(){IdfOperationService.build(applicationContext,target(),projects.selectedProjectId())}
+ private fun startBuildAndFlash(){IdfOperationService.buildAndFlash(applicationContext,target(),projects.selectedProjectId())}
  private fun startFlash(){
   lifecycleScope.launch{FlashState.open();AppState.operation(OperationState.PREPARING_BUILD,"Validating existing firmware artifacts…");runCatching{
    val plan=FlashPlanLoader.load(projects.projectDir);FlashState.status("Using existing build: ${plan.images.size} validated flash images at ${plan.baudRate} baud.");FlashState.status("Taking exclusive USB ownership…")
