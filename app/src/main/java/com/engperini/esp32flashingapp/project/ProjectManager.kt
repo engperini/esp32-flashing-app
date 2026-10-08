@@ -3,6 +3,7 @@ package com.engperini.esp32flashingapp.project
 import android.content.Context
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 
 class ProjectManager(context: Context) {
     private val projectsRoot = File(context.filesDir, "projects")
@@ -39,11 +40,35 @@ class ProjectManager(context: Context) {
         ensureExampleProject()
         return root.walkTopDown().filter { file ->
             val relative = file.relativeTo(root).path
-            file.isFile && file != configFile &&
+            file.isFile && file != configFile && file != manifestSnapshotFile &&
                 !relative.startsWith("build" + File.separator) &&
                 file.name != "esp32-flashing-app.log" &&
                 file.name != "esp32-flashing-app.previous.log"
         }.toList()
+    }
+
+    private val manifestSnapshotFile get() = File(root, ".idf-component-manifests.sha256")
+
+    private fun manifestDigest(): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        root.walkTopDown().filter { it.isFile && it.name == "idf_component.yml" &&
+            !it.relativeTo(root).invariantSeparatorsPath.startsWith("build/") &&
+            !it.relativeTo(root).invariantSeparatorsPath.startsWith("managed_components/") }.sortedBy { it.relativeTo(root).invariantSeparatorsPath }.forEach {
+            digest.update(it.relativeTo(root).invariantSeparatorsPath.toByteArray(Charsets.UTF_8))
+            digest.update(0.toByte())
+            digest.update(it.readBytes())
+            digest.update(0.toByte())
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    fun manifestsChanged(): Boolean {
+        ensureExampleProject()
+        return !manifestSnapshotFile.exists() || manifestSnapshotFile.readText() != manifestDigest()
+    }
+
+    fun recordManifestSnapshot() {
+        manifestSnapshotFile.writeText(manifestDigest())
     }
 
     fun relativePath(file: File): String = file.relativeTo(root).path.replace(File.separatorChar, '/')
