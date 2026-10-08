@@ -5,7 +5,7 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 
-class ProjectManager(context: Context) {
+class ProjectManager(private val context: Context) {
     private val projectsRoot = File(context.filesDir, "projects")
     private val prefs = context.getSharedPreferences("project_selection", Context.MODE_PRIVATE)
     private var pinnedProject: String? = null
