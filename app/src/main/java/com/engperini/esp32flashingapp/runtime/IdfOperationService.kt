@@ -24,6 +24,7 @@ class IdfOperationService : Service() {
         private const val ACTION_SETUP = "setup"
         private const val ACTION_DOCTOR = "doctor"
         private const val ACTION_FULL_CLEAN = "full_clean"
+        private const val ACTION_RECONFIGURE = "reconfigure"
         private const val ACTION_BUILD_FLASH = "build_flash"
         private const val ACTION_CANCEL_BUILD = "cancel_build"
         private const val EXTRA_TARGET = "target"
@@ -32,6 +33,7 @@ class IdfOperationService : Service() {
         fun setup(context: Context, target: String) = start(context, ACTION_SETUP, target)
         fun doctor(context: Context, target: String) = start(context, ACTION_DOCTOR, target)
         fun fullClean(context: Context, target: String) = start(context, ACTION_FULL_CLEAN, target)
+        fun reconfigure(context: Context, target: String) = start(context, ACTION_RECONFIGURE, target)
         fun buildAndFlash(context: Context, target: String) = start(context, ACTION_BUILD_FLASH, target)
         fun cancelBuild(context: Context) {
             val i = Intent(context, IdfOperationService::class.java).setAction(ACTION_CANCEL_BUILD)
@@ -102,6 +104,7 @@ class IdfOperationService : Service() {
                     ACTION_SETUP -> runSetup(target)
                     ACTION_DOCTOR -> runDoctor(target)
                     ACTION_FULL_CLEAN -> runFullClean(target)
+                    ACTION_RECONFIGURE -> runReconfigure(target)
                     ACTION_BUILD_FLASH -> runBuild(target, requestFlash = true)
                 }
             } finally {
@@ -122,6 +125,11 @@ class IdfOperationService : Service() {
         activeBuildExecutor = executor
         PersistentDiagnosticLog.append(applicationContext, "BUILD_START", "target=$target " + PersistentDiagnosticLog.deviceState(applicationContext) + " wakeLockHeld=${wakeLock?.isHeld == true}")
         runCatching {
+            if (projects.manifestsChanged()) {
+                PersistentDiagnosticLog.append(applicationContext, "COMPONENT_MANIFEST_CHANGED", "Reconfigure before incremental Build")
+                executor.reconfigure(projects.projectDir, target) { BuildState.output(it, "Resolving changed dependencies…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) }
+                projects.recordManifestSnapshot()
+            }
             val buildOutput = executor.buildPrepared(projects.projectDir, target) { BuildState.output(it, "Compiling firmware…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) }
             FlashPlanLoader.promoteLastGood(projects.projectDir, expectedTarget = target)
             buildOutput
@@ -148,6 +156,33 @@ class IdfOperationService : Service() {
                     update(if (phantomKill) "Build killed by Android" else "Build failed")
                 }
             }
+        activeBuildExecutor = null
+    }
+
+    private suspend fun runReconfigure(target: String) {
+        val projects = ProjectManager(applicationContext)
+        BuildState.open("ESP-IDF Reconfigure", "Reconfiguring project and resolving dependencies…")
+        AppState.operation(OperationState.PREPARING_BUILD, "Reconfiguring ESP-IDF project…")
+        update("Reconfiguring ESP-IDF…")
+        val executor = IdfBuildExecutor(applicationContext)
+        activeBuildExecutor = executor
+        runCatching {
+            executor.reconfigure(projects.projectDir, target) { BuildState.output(it, "Resolving project dependencies…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) }
+        }.onSuccess {
+            projects.recordManifestSnapshot()
+            BuildState.success(it, "Reconfigure completed")
+            AppState.operation(OperationState.IDLE, "Reconfigure completed")
+            update("Reconfigure completed")
+        }.onFailure {
+            if (it is IdfBuildExecutor.BuildCancelledException) {
+                BuildState.cancelled()
+                AppState.operation(OperationState.IDLE, "Reconfigure cancelled")
+            } else {
+                BuildState.error(it.message ?: "Reconfigure failed")
+                AppState.operation(OperationState.BUILD_ERROR, "Reconfigure failed — see details")
+            }
+            update("Reconfigure stopped")
+        }
         activeBuildExecutor = null
     }
 
