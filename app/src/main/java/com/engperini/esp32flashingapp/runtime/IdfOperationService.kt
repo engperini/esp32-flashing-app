@@ -125,6 +125,14 @@ class IdfOperationService : Service() {
         activeBuildExecutor = executor
         PersistentDiagnosticLog.append(applicationContext, "BUILD_START", "target=$target " + PersistentDiagnosticLog.deviceState(applicationContext) + " wakeLockHeld=${wakeLock?.isHeld == true}")
         runCatching {
+            val targetSwitched = projects.needsTargetSwitch(target)
+            if (targetSwitched) {
+                PersistentDiagnosticLog.append(applicationContext, "IDF_TARGET_SWITCH", "sdkconfig=${projects.configuredIdfTarget()} requested=$target")
+                executor.setProjectTarget(projects.projectDir, target) {
+                    BuildState.output(it, "Switching ESP-IDF target to $target…")
+                    PersistentDiagnosticLog.appendBuildOutput(applicationContext, it)
+                }
+            }
             if (projects.manifestsChanged()) {
                 PersistentDiagnosticLog.append(applicationContext, "COMPONENT_MANIFEST_CHANGED", "Reconfigure before incremental Build")
                 executor.reconfigure(projects.projectDir, target) { BuildState.output(it, "Resolving changed dependencies…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) }
@@ -167,6 +175,9 @@ class IdfOperationService : Service() {
         val executor = IdfBuildExecutor(applicationContext)
         activeBuildExecutor = executor
         runCatching {
+            if (projects.needsTargetSwitch(target)) {
+                executor.setProjectTarget(projects.projectDir, target) { BuildState.output(it, "Switching target to $target…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) }
+            }
             executor.reconfigure(projects.projectDir, target) { BuildState.output(it, "Resolving project dependencies…"); PersistentDiagnosticLog.appendBuildOutput(applicationContext, it) }
         }.onSuccess {
             projects.recordManifestSnapshot()
