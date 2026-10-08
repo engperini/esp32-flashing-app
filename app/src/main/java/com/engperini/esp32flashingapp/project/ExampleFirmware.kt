@@ -12,6 +12,8 @@ dependencies:
 #include "driver/i2c.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#define ESP_UTILS_LOG_TAG "SERVO_UTILS"
+#include "esp_lib_utils.h"
 
 #define I2C_PORT            I2C_NUM_0
 #define I2C_SDA             GPIO_NUM_14
@@ -57,7 +59,10 @@ static esp_err_t servo_set_angle(uint8_t channel, float angle) {
     float pulse_us = SERVO_MIN_US + (angle / 180.0f) * (SERVO_MAX_US - SERVO_MIN_US);
     uint16_t ticks = (uint16_t)((pulse_us * 4096.0f) / 20000.0f);
     esp_err_t err = pca9685_set_pwm(channel, 0, ticks);
-    if (err == ESP_OK) ESP_LOGI(TAG, "Servo %d -> %.0f deg (%d ticks)", channel, angle, ticks);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Servo %d -> %.0f deg (%d ticks)", channel, angle, ticks);
+        ESP_UTILS_LOGI("PCA9685 servo channel %u command accepted", (unsigned)channel);
+    }
     return err;
 }
 
