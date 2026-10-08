@@ -28,19 +28,20 @@ class IdfOperationService : Service() {
         private const val ACTION_BUILD_FLASH = "build_flash"
         private const val ACTION_CANCEL_BUILD = "cancel_build"
         private const val EXTRA_TARGET = "target"
+        private const val EXTRA_PROJECT = "project_id"
 
-        fun build(context: Context, target: String) = start(context, ACTION_BUILD, target)
-        fun setup(context: Context, target: String) = start(context, ACTION_SETUP, target)
-        fun doctor(context: Context, target: String) = start(context, ACTION_DOCTOR, target)
-        fun fullClean(context: Context, target: String) = start(context, ACTION_FULL_CLEAN, target)
-        fun reconfigure(context: Context, target: String) = start(context, ACTION_RECONFIGURE, target)
-        fun buildAndFlash(context: Context, target: String) = start(context, ACTION_BUILD_FLASH, target)
+        fun build(context: Context, target: String, projectId: String) = start(context, ACTION_BUILD, target, projectId)
+        fun setup(context: Context, target: String, projectId: String) = start(context, ACTION_SETUP, target, projectId)
+        fun doctor(context: Context, target: String, projectId: String) = start(context, ACTION_DOCTOR, target, projectId)
+        fun fullClean(context: Context, target: String, projectId: String) = start(context, ACTION_FULL_CLEAN, target, projectId)
+        fun reconfigure(context: Context, target: String, projectId: String) = start(context, ACTION_RECONFIGURE, target, projectId)
+        fun buildAndFlash(context: Context, target: String, projectId: String) = start(context, ACTION_BUILD_FLASH, target, projectId)
         fun cancelBuild(context: Context) {
             val i = Intent(context, IdfOperationService::class.java).setAction(ACTION_CANCEL_BUILD)
             context.startService(i)
         }
-        private fun start(context: Context, action: String, target: String) {
-            val i = Intent(context, IdfOperationService::class.java).setAction(action).putExtra(EXTRA_TARGET, target)
+        private fun start(context: Context, action: String, target: String, projectId: String) {
+            val i = Intent(context, IdfOperationService::class.java).setAction(action).putExtra(EXTRA_TARGET, target).putExtra(EXTRA_PROJECT, projectId)
             androidx.core.content.ContextCompat.startForegroundService(context, i)
         }
     }
@@ -97,15 +98,16 @@ class IdfOperationService : Service() {
         if (running) return START_NOT_STICKY
         running = true
         val target = intent?.getStringExtra(EXTRA_TARGET) ?: return START_NOT_STICKY
+        val projectId = intent.getStringExtra(EXTRA_PROJECT) ?: "example"
         scope.launch {
             try {
                 when (intent?.action) {
-                    ACTION_BUILD -> runBuild(target)
-                    ACTION_SETUP -> runSetup(target)
-                    ACTION_DOCTOR -> runDoctor(target)
-                    ACTION_FULL_CLEAN -> runFullClean(target)
-                    ACTION_RECONFIGURE -> runReconfigure(target)
-                    ACTION_BUILD_FLASH -> runBuild(target, requestFlash = true)
+                    ACTION_BUILD -> runBuild(target, projectId)
+                    ACTION_SETUP -> runSetup(target, projectId)
+                    ACTION_DOCTOR -> runDoctor(target, projectId)
+                    ACTION_FULL_CLEAN -> runFullClean(target, projectId)
+                    ACTION_RECONFIGURE -> runReconfigure(target, projectId)
+                    ACTION_BUILD_FLASH -> runBuild(target, projectId, requestFlash = true)
                 }
             } finally {
                 running = false
@@ -116,8 +118,8 @@ class IdfOperationService : Service() {
         return START_NOT_STICKY
     }
 
-    private suspend fun runBuild(target: String, requestFlash: Boolean = false) {
-        val projects = ProjectManager(applicationContext)
+    private suspend fun runBuild(target: String, projectId: String, requestFlash: Boolean = false) {
+        val projects = ProjectManager(applicationContext).pinned(projectId)
         BuildState.open()
         AppState.operation(OperationState.BUILDING, "Building $target firmware…")
         update("Building $target firmware…")
@@ -167,8 +169,8 @@ class IdfOperationService : Service() {
         activeBuildExecutor = null
     }
 
-    private suspend fun runReconfigure(target: String) {
-        val projects = ProjectManager(applicationContext)
+    private suspend fun runReconfigure(target: String, projectId: String) {
+        val projects = ProjectManager(applicationContext).pinned(projectId)
         BuildState.open("ESP-IDF Reconfigure", "Reconfiguring project and resolving dependencies…")
         AppState.operation(OperationState.PREPARING_BUILD, "Reconfiguring ESP-IDF project…")
         update("Reconfiguring ESP-IDF…")
@@ -197,8 +199,8 @@ class IdfOperationService : Service() {
         activeBuildExecutor = null
     }
 
-    private suspend fun runFullClean(target: String) {
-        val projects = ProjectManager(applicationContext)
+    private suspend fun runFullClean(target: String, projectId: String) {
+        val projects = ProjectManager(applicationContext).pinned(projectId)
         BuildState.open("ESP-IDF Full Clean", "Cleaning build output…")
         AppState.operation(OperationState.PREPARING_BUILD, "Cleaning ESP-IDF build cache…")
         update("Running ESP-IDF Full Clean…")
@@ -207,12 +209,12 @@ class IdfOperationService : Service() {
             .onFailure { val message = it.message ?: "Full Clean failed"; BuildState.error(message); AppState.operation(OperationState.BUILD_ERROR, "Full Clean failed — see details"); update("Full Clean failed") }
     }
 
-    private suspend fun runSetup(target: String) {
+    private suspend fun runSetup(target: String, projectId: String) {
         SetupState.open()
         AppState.operation(OperationState.PREPARING_BUILD, "Configuring ESP-IDF 5.5 for $target…")
         update("Configuring ESP-IDF 5.5…")
         runCatching {
-            val projects = ProjectManager(applicationContext)
+            val projects = ProjectManager(applicationContext).pinned(projectId)
             val executor = IdfBuildExecutor(applicationContext)
             executor.prepare(target) { SetupState.progress(it) }
             executor.setProjectTarget(projects.projectDir, target) { SetupState.progress(SetupProgress(SetupStep.TOOLCHAIN, "Applying project target $target…", it)) }
@@ -223,7 +225,7 @@ class IdfOperationService : Service() {
             }
     }
 
-    private suspend fun runDoctor(target: String) {
+    private suspend fun runDoctor(target: String, projectId: String) {
         BuildState.open("ESP-IDF Doctor", "Checking environment…")
         AppState.operation(OperationState.PREPARING_BUILD, "Checking ESP-IDF 5.5 environment…")
         update("Checking ESP-IDF environment…")
