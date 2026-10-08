@@ -62,6 +62,22 @@ class ProjectManager(context: Context) {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
+    fun configuredIdfTarget(): String? {
+        val sdkconfig = File(root, "sdkconfig")
+        if (!sdkconfig.isFile) return null
+        return sdkconfig.useLines { lines ->
+            lines.firstOrNull { it.startsWith("CONFIG_IDF_TARGET=") }
+                ?.substringAfter('=')
+                ?.trim()
+                ?.removeSurrounding("\"")
+        }
+    }
+
+    fun needsTargetSwitch(target: String): Boolean {
+        require(target in SupportedTargets.values) { "Unsupported target: $target" }
+        return configuredIdfTarget() != target
+    }
+
     fun manifestsChanged(): Boolean {
         ensureExampleProject()
         return !manifestSnapshotFile.exists() || manifestSnapshotFile.readText() != manifestDigest()
