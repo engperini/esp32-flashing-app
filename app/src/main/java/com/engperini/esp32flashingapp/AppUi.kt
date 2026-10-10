@@ -25,6 +25,7 @@ fun MainShell(
     projectIds: List<String>,
     selectedProjectId: String,
     onProjectSelect: (String) -> Unit,
+    onNewProject: (String, String) -> Unit,
     section: AppSection,
     onSection: (AppSection) -> Unit,
     connected: Boolean,
@@ -67,7 +68,7 @@ fun MainShell(
     ) { padding ->
         when(section) {
             AppSection.HARDWARE -> HardwareScreen(state, project, connected, onTarget, onConnect, onDisconnect, onBootloader, onReset, onBuild, onFlash, onBuildFlash, onStartMonitor, onStopMonitor, onClearSerial, Modifier.padding(padding))
-            AppSection.PROJECT -> ProjectScreen(projectIds, selectedProjectId, onProjectSelect, files, selectedFile, editorText, onSelectFile, onEditorText, onSaveFile, saveFeedback, onCreateFile, onCreateFolder, onRefreshFiles, Modifier.padding(padding))
+            AppSection.PROJECT -> ProjectScreen(projectIds, selectedProjectId, onProjectSelect, onNewProject, files, selectedFile, editorText, onSelectFile, onEditorText, onSaveFile, saveFeedback, onCreateFile, onCreateFolder, onRefreshFiles, Modifier.padding(padding))
             AppSection.SETTINGS -> SettingsScreen(project, onConfigure, onDoctor, onFullClean, onReconfigure, onExportLog, Modifier.padding(padding))
         }
     }
@@ -109,11 +110,12 @@ fun MainShell(
     }
 }
 
-@Composable private fun ProjectScreen(projectIds:List<String>,selectedProjectId:String,onProjectSelect:(String)->Unit,files:List<String>,selectedFile:String,editorText:String,onSelectFile:(String)->Unit,onEditorText:(String)->Unit,onSaveFile:()->Unit,saveFeedback:String,onCreateFile:(String)->Unit,onCreateFolder:(String)->Unit,onRefreshFiles:()->Unit,modifier:Modifier){
-    var newKind by remember { mutableStateOf<String?>(null) };var newPath by remember { mutableStateOf("") };var projectMenu by remember { mutableStateOf(false) }
+@Composable private fun ProjectScreen(projectIds:List<String>,selectedProjectId:String,onProjectSelect:(String)->Unit,onNewProject:(String,String)->Unit,files:List<String>,selectedFile:String,editorText:String,onSelectFile:(String)->Unit,onEditorText:(String)->Unit,onSaveFile:()->Unit,saveFeedback:String,onCreateFile:(String)->Unit,onCreateFolder:(String)->Unit,onRefreshFiles:()->Unit,modifier:Modifier){
+    var newKind by remember { mutableStateOf<String?>(null) };var newPath by remember { mutableStateOf("") };var projectMenu by remember { mutableStateOf(false) }; var showNewProject by remember { mutableStateOf(false) }; var newProjectName by remember { mutableStateOf("") }; var newProjectTarget by remember { mutableStateOf("esp32s3") }
+    if(showNewProject) AlertDialog(onDismissRequest={showNewProject=false},title={Text("New ESP-IDF Project")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(newProjectName,{newProjectName=it},label={Text("Project name")},singleLine=true);Text("Target");Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){SupportedTargets.values.forEach{t->FilterChip(selected=newProjectTarget==t,onClick={newProjectTarget=t},label={Text(SupportedTargets.label(t))})}}}},confirmButton={Button(enabled=newProjectName.isNotBlank(),onClick={onNewProject(newProjectName,newProjectTarget);showNewProject=false;newProjectName=""}){Text("Create")}},dismissButton={TextButton(onClick={showNewProject=false}){Text("Cancel")}})
     if(newKind!=null) AlertDialog(onDismissRequest={newKind=null},title={Text("New "+newKind)},text={OutlinedTextField(newPath,{newPath=it},label={Text("Path inside project")},singleLine=true)},confirmButton={Button(onClick={if(newKind=="file")onCreateFile(newPath) else onCreateFolder(newPath);newPath="";newKind=null}){Text("Create")}},dismissButton={TextButton(onClick={newKind=null}){Text("Cancel")}})
     Column(modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text("Project",style=MaterialTheme.typography.titleLarge);Text("ESP-IDF project files",style=MaterialTheme.typography.bodySmall)};Row{TextButton(onClick={newKind="file"}){Text("+ File")};TextButton(onClick={newKind="folder"}){Text("+ Folder")};TextButton(onClick=onRefreshFiles){Text("Refresh")}}}
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text("Project",style=MaterialTheme.typography.titleLarge);Text("ESP-IDF project files",style=MaterialTheme.typography.bodySmall)};Row{TextButton(onClick={showNewProject=true}){Text("+ Project")};TextButton(onClick={newKind="file"}){Text("+ File")};TextButton(onClick={newKind="folder"}){Text("+ Folder")};TextButton(onClick=onRefreshFiles){Text("Refresh")}}}
         Box {
             OutlinedButton(onClick={projectMenu=true}) { Text("Project: " + selectedProjectId + " ▼") }
             DropdownMenu(expanded=projectMenu,onDismissRequest={projectMenu=false}) {
