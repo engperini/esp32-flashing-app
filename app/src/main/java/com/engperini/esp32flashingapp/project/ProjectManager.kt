@@ -49,6 +49,10 @@ class ProjectManager(private val context: Context) {
             "esp32s3", "esp_wifi esp_event esp_netif nvs_flash esp_http_server",
             "dependencies:\n  espressif/esp32-camera: \"^2.0.0\"\n",
             "CONFIG_SPIRAM=y\nCONFIG_SPIRAM_MODE_OCT=y\nCONFIG_SPIRAM_SPEED_80M=y\nCONFIG_SPIRAM_USE_MALLOC=y\n")
+        ensureBuiltIn("esp32cam-webserver", "ESP32-CAM WebServer (AI-Thinker)", Esp32CamFirmware.mainC,
+            "esp32", "esp_wifi esp_event esp_netif nvs_flash esp_http_server",
+            "dependencies:\n  espressif/esp32-camera: \"^2.0.0\"\n",
+            "CONFIG_ESP_CONSOLE_UART_DEFAULT=y\nCONFIG_ESP_CONSOLE_UART_BAUDRATE=115200\nCONFIG_SPIRAM=y\nCONFIG_SPIRAM_MODE_QUAD=y\nCONFIG_SPIRAM_SPEED_40M=y\nCONFIG_SPIRAM_USE_MALLOC=y\nCONFIG_ESP_MAIN_TASK_STACK_SIZE=8192\n")
         ensureBuiltIn("bme280", "BME280 Sensor", Bme280Firmware.mainC,
             "esp32s3", "driver", "", "")
         return root
