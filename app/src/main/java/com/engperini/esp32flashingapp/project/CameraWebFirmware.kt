@@ -365,10 +365,19 @@ void app_main(void) {
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
-    camera_start();
     wifi_start();
     start_server();
+    camera_start();
     while (1) {
+        wifi_mode_t mode = WIFI_MODE_NULL;
+        wifi_config_t ap_check = {0};
+        esp_err_t mode_err = esp_wifi_get_mode(&mode);
+        esp_err_t ap_err = esp_wifi_get_config(WIFI_IF_AP, &ap_check);
+        ESP_LOGI(TAG, "WIFI_DIAG: mode=%s (%d) ap=%s ssid=%s channel=%u",
+                 esp_err_to_name(mode_err), (int)mode,
+                 esp_err_to_name(ap_err),
+                 ap_err == ESP_OK ? (const char *)ap_check.ap.ssid : "unavailable",
+                 ap_err == ESP_OK ? (unsigned)ap_check.ap.channel : 0U);
         ESP_LOGI(TAG, "Webserver alive | camera=%s | home Wi-Fi=%s | setup=http://192.168.4.1/",
                  camera_ready ? "ready" : "absent", sta_connected ? "connected" : "offline");
         vTaskDelay(pdMS_TO_TICKS(5000));
