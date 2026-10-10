@@ -73,8 +73,8 @@ class ProjectManager(private val context: Context) {
             main.writeText(ExampleFirmware.mainC)
         }
         val defaults = File(dir, "sdkconfig.defaults")
-        if (defaults.isFile && defaults.readText() == "# Target defaults\\n") {
-            defaults.writeText("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\\n")
+        if (defaults.isFile && defaults.readText() == "# Target defaults\n") {
+            defaults.writeText("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n")
         }
     }
 
