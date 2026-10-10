@@ -44,6 +44,12 @@ class ProjectManager(private val context: Context) {
         if (!configFile.exists()) saveConfig(ProjectConfig(if (root.name == "example") "Existing project" else root.name, "esp32s3"))
         ensureTemplate("hello-world", "Hello World", ExampleFirmware.mainC, "esp32s3", false)
         migrateHelloWorldTemplate()
+        ensureBuiltIn("camera-webserver", "Camera WebServer", CameraWebFirmware.mainC,
+            "esp32s3", "esp_wifi esp_event esp_netif nvs_flash esp_http_server",
+            "dependencies:\n  espressif/esp32-camera: \"^2.0.0\"\n",
+            "CONFIG_SPIRAM=y\nCONFIG_SPIRAM_MODE_OCT=y\nCONFIG_SPIRAM_SPEED_80M=y\nCONFIG_SPIRAM_USE_MALLOC=y\n")
+        ensureBuiltIn("bme280", "BME280 Sensor", Bme280Firmware.mainC,
+            "esp32s3", "driver", "", "")
         return root
     }
 
@@ -61,6 +67,33 @@ class ProjectManager(private val context: Context) {
         File(dir, "sdkconfig.defaults").writeText("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n")
         File(dir, "main/main.c").writeText(main)
         File(dir, ".esp32-flashing-app.json").writeText(JSONObject().put("name", name).put("target", target).toString(2))
+    }
+
+    /** Built-ins are created once; existing projects and user edits are never overwritten. */
+    private fun ensureBuiltIn(id: String, name: String, source: String, target: String,
+                              requirements: String, manifest: String, extraDefaults: String) {
+        val dir = File(projectsRoot, id)
+        if (dir.exists()) return
+        require(dir.mkdirs()) { "Cannot create project: $id" }
+        File(dir, "main").mkdirs()
+        File(dir, "CMakeLists.txt").writeText("cmake_minimum_required(VERSION 3.16)\ninclude(\u0024ENV{IDF_PATH}/tools/cmake/project.cmake)\nproject(" + id.replace('-', '_') + ")\n")
+        File(dir, "main/CMakeLists.txt").writeText("idf_component_register(SRCS \"main.c\" PRIV_REQUIRES $requirements INCLUDE_DIRS \".\")\n")
+        if (manifest.isNotEmpty()) File(dir, "main/idf_component.yml").writeText(manifest)
+        File(dir, "sdkconfig.defaults").writeText("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n" + extraDefaults)
+        File(dir, "main/main.c").writeText(source)
+        File(dir, ".esp32-flashing-app.json").writeText(JSONObject().put("name", name).put("target", target).toString(2))
+    }
+
+    fun createProject(name: String, target: String): String {
+        require(target in SupportedTargets.values) { "Unsupported target" }
+        val cleanName = name.trim()
+        require(cleanName.isNotEmpty() && cleanName.length <= 64) { "Enter a project name (1-64 characters)" }
+        val id = cleanName.lowercase(java.util.Locale.ROOT).replace(Regex("[^a-z0-9_-]+"), "-").trim('-')
+        require(id.isNotEmpty() && id != "example") { "Invalid project name" }
+        require(!File(projectsRoot, id).exists()) { "Project already exists: $id" }
+        val main = "#include <stdio.h>\n#include \"freertos/FreeRTOS.h\"\n#include \"freertos/task.h\"\nvoid app_main(void) { while (1) { printf(\"Hello from $id!\\n\"); vTaskDelay(pdMS_TO_TICKS(5000)); } }\n"
+        ensureBuiltIn(id, cleanName, main, target, "", "", "")
+        return id
     }
 
     /** Update only the untouched, generated Hello World template; never modify user edits. */
