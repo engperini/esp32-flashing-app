@@ -74,8 +74,12 @@ class ProjectManager(private val context: Context) {
     private fun migrateCameraWebTemplate() {
         val dir = File(projectsRoot, "camera-webserver")
         val main = File(dir, "main/main.c")
-        if (!main.isFile || main.readText() != CameraWebFirmware.previousMainC) return
-        main.writeText(CameraWebFirmware.mainC)
+        if (!main.isFile) return
+        val current = main.readText()
+        if (current == CameraWebFirmware.previousMainC ||
+            current == CameraWebFirmware.mainC.replace("HTTPD_500_INTERNAL_SERVER_ERROR", "HTTPD_503_SERVICE_UNAVAILABLE")) {
+            main.writeText(CameraWebFirmware.mainC)
+        }
     }
 
     /** Built-ins are created once; existing projects and user edits are never overwritten. */
