@@ -252,7 +252,7 @@ static esp_err_t wifi_save_handler(httpd_req_t *req) {
     return httpd_resp_sendstr(req, "<html><body><h3>Wi-Fi saved</h3><p>Connecting. Check the USB serial log for the home network IP.</p><a href='/'>Back</a></body></html>");
 }
 static esp_err_t capture_handler(httpd_req_t *req) {
-    if (!camera_ready) return httpd_resp_send_err(req, HTTPD_503_SERVICE_UNAVAILABLE, "Camera not connected");
+    if (!camera_ready) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Camera not connected");
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Camera capture failed");
     httpd_resp_set_type(req, "image/jpeg");
@@ -261,7 +261,7 @@ static esp_err_t capture_handler(httpd_req_t *req) {
     return ret;
 }
 static esp_err_t stream_handler(httpd_req_t *req) {
-    if (!camera_ready) return httpd_resp_send_err(req, HTTPD_503_SERVICE_UNAVAILABLE, "Camera not connected");
+    if (!camera_ready) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Camera not connected");
     esp_err_t ret = httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=frame");
     if (ret != ESP_OK) return ret;
     while (1) {
