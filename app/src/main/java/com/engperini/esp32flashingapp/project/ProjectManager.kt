@@ -44,6 +44,7 @@ class ProjectManager(private val context: Context) {
         if (!configFile.exists()) saveConfig(ProjectConfig(if (root.name == "example") "Existing project" else root.name, "esp32s3"))
         ensureTemplate("hello-world", "Hello World", ExampleFirmware.mainC, "esp32s3", false)
         migrateHelloWorldTemplate()
+        migrateCameraWebTemplate()
         ensureBuiltIn("camera-webserver", "Camera WebServer", CameraWebFirmware.mainC,
             "esp32s3", "esp_wifi esp_event esp_netif nvs_flash esp_http_server",
             "dependencies:\n  espressif/esp32-camera: \"^2.0.0\"\n",
@@ -67,6 +68,14 @@ class ProjectManager(private val context: Context) {
         File(dir, "sdkconfig.defaults").writeText("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n")
         File(dir, "main/main.c").writeText(main)
         File(dir, ".esp32-flashing-app.json").writeText(JSONObject().put("name", name).put("target", target).toString(2))
+    }
+
+    /** Only migrate the untouched original camera example; preserve user-modified files. */
+    private fun migrateCameraWebTemplate() {
+        val dir = File(projectsRoot, "camera-webserver")
+        val main = File(dir, "main/main.c")
+        if (!main.isFile || main.readText() != CameraWebFirmware.previousMainC) return
+        main.writeText(CameraWebFirmware.mainC)
     }
 
     /** Built-ins are created once; existing projects and user edits are never overwritten. */
