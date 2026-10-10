@@ -53,6 +53,8 @@ class ProjectManager(private val context: Context) {
             "esp32", "esp_wifi esp_event esp_netif nvs_flash esp_http_server",
             "dependencies:\n  espressif/esp32-camera: \"^2.0.0\"\n",
             "CONFIG_ESP_CONSOLE_UART_DEFAULT=y\nCONFIG_ESP_CONSOLE_UART_BAUDRATE=115200\nCONFIG_SPIRAM=y\nCONFIG_SPIRAM_MODE_QUAD=y\nCONFIG_SPIRAM_SPEED_40M=y\nCONFIG_SPIRAM_USE_MALLOC=y\nCONFIG_ESP_MAIN_TASK_STACK_SIZE=8192\n")
+        ensureBuiltIn("i2c-scanner", "I2C Scanner (XIAO ESP32-S3)", I2cScannerFirmware.mainC,
+            "esp32s3", "driver", "", "")
         ensureBuiltIn("bme280", "BME280 Sensor", Bme280Firmware.mainC,
             "esp32s3", "driver", "", "")
         return root
