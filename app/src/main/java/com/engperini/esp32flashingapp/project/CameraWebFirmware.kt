@@ -114,9 +114,9 @@ void app_main(void) {
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
-    camera_start();
     wifi_start();
     start_server();
+    camera_start();
     while (1) {
         ESP_LOGI(TAG, "Camera server running");
         vTaskDelay(pdMS_TO_TICKS(5000));
