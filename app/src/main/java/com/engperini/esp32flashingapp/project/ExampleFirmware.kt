@@ -27,13 +27,13 @@ dependencies:
 
 void app_main(void)
 {
-    printf("Hello world from ESP32 Flashing App!\\n");
+    printf("Hello world from ESP32 Flashing App!\n");
 
     esp_chip_info_t chip_info;
     uint32_t flash_size = 0;
     esp_chip_info(&chip_info);
 
-    printf("Target: %s | CPU cores: %d | Features: %s%s%s%s\\n",
+    printf("Target: %s | CPU cores: %d | Features: %s%s%s%s\n",
            CONFIG_IDF_TARGET,
            chip_info.cores,
            (chip_info.features & CHIP_FEATURE_WIFI_BGN) ? "WiFi/" : "",
@@ -41,26 +41,26 @@ void app_main(void)
            (chip_info.features & CHIP_FEATURE_BLE) ? "BLE/" : "",
            (chip_info.features & CHIP_FEATURE_IEEE802154) ? "802.15.4" : "");
 
-    printf("Silicon revision: v%u.%u\\n",
+    printf("Silicon revision: v%u.%u\n",
            (unsigned)(chip_info.revision / 100),
            (unsigned)(chip_info.revision % 100));
 
     if (esp_flash_get_size(NULL, &flash_size) == ESP_OK) {
-        printf("Flash: %" PRIu32 " MB (%s)\\n",
+        printf("Flash: %" PRIu32 " MB (%s)\n",
                flash_size / (uint32_t)(1024 * 1024),
                (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
     } else {
-        printf("Flash size unavailable\\n");
+        printf("Flash size unavailable\n");
     }
 
-    printf("Minimum free heap: %" PRIu32 " bytes\\n",
+    printf("Minimum free heap: %" PRIu32 " bytes\n",
            esp_get_minimum_free_heap_size());
 
     /* Exercise an API from the official ESP-IDF Component Manager dependency. */
     ESP_UTILS_LOGI("External esp-lib-utils component is linked; target=%s", CONFIG_IDF_TARGET);
 
     while (1) {
-        printf("Hello from %s - free heap: %" PRIu32 " bytes\\n",
+        printf("Hello from %s - free heap: %" PRIu32 " bytes\n",
                CONFIG_IDF_TARGET, esp_get_free_heap_size());
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
