@@ -43,7 +43,7 @@ class ProjectManager(private val context: Context) {
         createIfMissing(mainFile, ExampleFirmware.mainC)
         if (!configFile.exists()) saveConfig(ProjectConfig(if (root.name == "example") "Existing project" else root.name, "esp32s3"))
         ensureTemplate("hello-world", "Hello World", ExampleFirmware.mainC, "esp32s3", false)
-        ensureTemplate("servo-pca9685", "Servo PCA9685", ServoFirmware.mainC, "esp32", true)
+        migrateHelloWorldTemplate()
         return root
     }
 
@@ -58,9 +58,24 @@ class ProjectManager(private val context: Context) {
             else "idf_component_register(SRCS \"main.c\" PRIV_REQUIRES spi_flash INCLUDE_DIRS \".\")\n"
         )
         File(dir, "main/idf_component.yml").writeText(ExampleFirmware.componentManifest)
-        File(dir, "sdkconfig.defaults").writeText(if (servo) "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n" else "# Target defaults\n")
+        File(dir, "sdkconfig.defaults").writeText("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\n")
         File(dir, "main/main.c").writeText(main)
         File(dir, ".esp32-flashing-app.json").writeText(JSONObject().put("name", name).put("target", target).toString(2))
+    }
+
+    /** Update only the untouched, generated Hello World template; never modify user edits. */
+    private fun migrateHelloWorldTemplate() {
+        val dir = File(projectsRoot, "hello-world")
+        if (!dir.isDirectory) return
+        val main = File(dir, "main/main.c")
+        val previousTemplate = ExampleFirmware.mainC.replace("\\n", "\\\\n")
+        if (main.isFile && main.readText() == previousTemplate) {
+            main.writeText(ExampleFirmware.mainC)
+        }
+        val defaults = File(dir, "sdkconfig.defaults")
+        if (defaults.isFile && defaults.readText() == "# Target defaults\\n") {
+            defaults.writeText("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y\\nCONFIG_ESP_CONSOLE_SECONDARY_NONE=y\\n")
+        }
     }
 
     fun config(): ProjectConfig {
