@@ -68,6 +68,22 @@ device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationCo
      } else if (id != selectedProjectId) {
       AppState.operation(OperationState.PREPARING_BUILD,"Wait for the active operation to finish before changing projects")
      }
+    },onNewProject={name,chip->
+     if (build.visible || setup.visible || flash.visible) {
+      AppState.operation(OperationState.PREPARING_BUILD,"Wait for the active operation before creating a project")
+     } else {
+      runCatching { projects.createProject(name,chip) }.onSuccess { id ->
+       projects.selectProject(id)
+       selectedProjectId=id
+       projectIds=projects.projectIds()
+       project=projects.config()
+       files=projects.listFiles().map(projects::relativePath)
+       selectedFile="main/main.c"
+       editorText=projects.read(selectedFile)
+       saveFeedback=""
+       AppState.operation(OperationState.IDLE,"Created project: "+project.name)
+      }.onFailure { AppState.operation(OperationState.BUILD_ERROR,it.message?:"Unable to create project") }
+     }
     },section,{section=it},device.isConnected(),files,selectedFile,editorText,
     onTarget={target->if(target!=project.target){projects.setTarget(target);project=projects.config();AppState.operation(OperationState.IDLE,"Target changed to $target • Configure ESP-IDF before building")}},
     onConnect={device.connect()},onDisconnect={device.disconnect()},
