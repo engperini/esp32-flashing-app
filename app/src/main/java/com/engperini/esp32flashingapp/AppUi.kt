@@ -115,7 +115,16 @@ fun MainShell(
     if(showNewProject) AlertDialog(onDismissRequest={showNewProject=false},title={Text("New ESP-IDF Project")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(newProjectName,{newProjectName=it},label={Text("Project name")},singleLine=true);Text("Target");Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){SupportedTargets.values.forEach{t->FilterChip(selected=newProjectTarget==t,onClick={newProjectTarget=t},label={Text(SupportedTargets.label(t))})}}}},confirmButton={Button(enabled=newProjectName.isNotBlank(),onClick={onNewProject(newProjectName,newProjectTarget);showNewProject=false;newProjectName=""}){Text("Create")}},dismissButton={TextButton(onClick={showNewProject=false}){Text("Cancel")}})
     if(newKind!=null) AlertDialog(onDismissRequest={newKind=null},title={Text("New "+newKind)},text={OutlinedTextField(newPath,{newPath=it},label={Text("Path inside project")},singleLine=true)},confirmButton={Button(onClick={if(newKind=="file")onCreateFile(newPath) else onCreateFolder(newPath);newPath="";newKind=null}){Text("Create")}},dismissButton={TextButton(onClick={newKind=null}){Text("Cancel")}})
     Column(modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text("Project",style=MaterialTheme.typography.titleLarge);Text("ESP-IDF project files",style=MaterialTheme.typography.bodySmall)};Row{TextButton(onClick={showNewProject=true}){Text("+ Project")};TextButton(onClick={newKind="file"}){Text("+ File")};TextButton(onClick={newKind="folder"}){Text("+ Folder")};TextButton(onClick=onRefreshFiles){Text("Refresh")}}}
+        Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
+            Text("Project",style=MaterialTheme.typography.titleLarge)
+            Text("ESP-IDF project files",style=MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick={showNewProject=true},modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=2.dp)) { Text("+ Project",maxLines=1,softWrap=false) }
+                TextButton(onClick={newKind="file"},modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=2.dp)) { Text("+ File",maxLines=1,softWrap=false) }
+                TextButton(onClick={newKind="folder"},modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=2.dp)) { Text("+ Folder",maxLines=1,softWrap=false) }
+                IconButton(onClick=onRefreshFiles) { Text("↻") }
+            }
+        }
         Box {
             OutlinedButton(onClick={projectMenu=true}) { Text("Project: " + selectedProjectId + " ▼") }
             DropdownMenu(expanded=projectMenu,onDismissRequest={projectMenu=false}) {
