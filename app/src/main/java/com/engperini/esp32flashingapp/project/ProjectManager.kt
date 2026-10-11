@@ -33,7 +33,10 @@ class ProjectManager(private val context: Context) {
 
     fun selectProject(id: String) {
         require(id.matches(Regex("[a-zA-Z0-9_-]+"))) { "Invalid project identifier" }
-        if (id in bundledProjectIds) ensureBundledProject(id)
+        if (id in bundledProjectIds) {
+            ensureBundledProject(id)
+            if (id == "animatronic-eye") updateUnmodifiedPca9685()
+        }
         require(File(projectsRoot, "$id/.esp32-flashing-app.json").isFile) { "Project not found: $id" }
         prefs.edit().putString("selected", id).apply()
     }
@@ -90,6 +93,16 @@ class ProjectManager(private val context: Context) {
         if (!metadata.exists()) metadata.writeText(
             JSONObject().put("name", name).put("target", "esp32s3").toString(2)
         )
+    }
+
+    /** Upgrade only the original bundled PCA9685 file, never user-edited source. */
+    private fun updateUnmodifiedPca9685() {
+        val file = File(projectsRoot, "animatronic-eye/components/servo/pca9685.cpp")
+        if (!file.isFile) return
+        val current = file.readText()
+        if (current == AnimatronicEyePart3.previousPca9685) {
+            file.writeText(AnimatronicEyePart3.files.getValue("components/servo/pca9685.cpp"))
+        }
     }
 
     private fun ensureTemplate(id: String, name: String, main: String, target: String, servo: Boolean) {
