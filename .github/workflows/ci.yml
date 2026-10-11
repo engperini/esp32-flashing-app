@@ -170,3 +170,61 @@ jobs:
           name: proot-engine-arm64-proof
           path: /tmp/pr/android/proot-engine/build/outputs/aar/proot-engine-debug.aar
           if-no-files-found: error
+
+  animatronic-ota:
+    name: Bundled Animatronic Eye ESP32-S3 OTA binary
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.5.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore bundled firmware sources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+          folder = Path('app/src/main/java/com/engperini/esp32flashingapp/project')
+          dest = Path('/tmp/animatronic-eye-ota')
+          count = 0
+          for part in range(1, 5):
+              content = (folder / f'AnimatronicEyePart{part}.kt').read_text()
+              for line in content.splitlines():
+                  match = re.fullmatch(r'"([^"]+)" to "((?:\\.|[^"\\])*)",?', line.strip())
+                  if not match:
+                      continue
+                  path, encoded = match.groups()
+                  # Kotlin escapes dollar signs in string literals; JSON does not.
+                  encoded = encoded.replace(r'\$', '$')
+                  decoded = json.loads('"' + encoded + '"')
+                  output = dest / path
+                  output.parent.mkdir(parents=True, exist_ok=True)
+                  output.write_text(decoded)
+                  count += 1
+          assert count >= 20, f'Bundled project extraction incomplete: {count} files'
+          assert (dest / 'main/main.cpp').is_file()
+          assert (dest / 'components/servo/pca9685.cpp').is_file()
+          print(f'Extracted {count} bundled firmware files')
+          PY
+      - name: Build bundled ESP-IDF firmware
+        shell: bash
+        run: |
+          set -e
+          . /opt/esp/idf/export.sh
+          cd /tmp/animatronic-eye-ota
+          idf.py set-target esp32s3
+          idf.py build
+          test -s build/animatronic_eye.bin
+          sha256sum build/animatronic_eye.bin > build/animatronic_eye.bin.sha256
+          printf 'App commit: %s\nESP-IDF: 5.5.2\nTarget: esp32s3\nOTA file: animatronic_eye.bin\n' "$GITHUB_SHA" > build/OTA-README.txt
+      - name: Upload OTA application firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: animatronic-eye-esp32s3-ota
+          path: |
+            /tmp/animatronic-eye-ota/build/animatronic_eye.bin
+            /tmp/animatronic-eye-ota/build/animatronic_eye.bin.sha256
+            /tmp/animatronic-eye-ota/build/OTA-README.txt
+          if-no-files-found: error
+          retention-days: 90
