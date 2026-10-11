@@ -35,7 +35,7 @@ class ProjectManager(private val context: Context) {
         require(id.matches(Regex("[a-zA-Z0-9_-]+"))) { "Invalid project identifier" }
         if (id in bundledProjectIds) {
             ensureBundledProject(id)
-            if (id == "animatronic-eye") updateUnmodifiedPca9685()
+            if (id == "animatronic-eye") updateUnmodifiedAnimatronicFiles()
         }
         require(File(projectsRoot, "$id/.esp32-flashing-app.json").isFile) { "Project not found: $id" }
         prefs.edit().putString("selected", id).apply()
@@ -48,7 +48,7 @@ class ProjectManager(private val context: Context) {
     }
 
     fun ensureExampleProject(): File {
-        if (selectedProjectId() == "animatronic-eye") updateUnmodifiedPca9685()
+        if (selectedProjectId() == "animatronic-eye") updateUnmodifiedAnimatronicFiles()
         File(root, "main").mkdirs()
         createIfMissing(File(root, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.16)\ninclude(\u0024ENV{IDF_PATH}/tools/cmake/project.cmake)\nproject(esp32_flashing_app_example)\n")
         createIfMissing(File(root, "main/CMakeLists.txt"), "idf_component_register(SRCS \"main.c\" PRIV_REQUIRES spi_flash INCLUDE_DIRS \".\")\n")
@@ -105,6 +105,20 @@ class ProjectManager(private val context: Context) {
         val normalize: (String) -> String = { it.replace("\r\n", "\n").trimEnd('\n') }
         if (normalize(current) == normalize(AnimatronicEyePart3.previousPca9685)) {
             file.writeText(AnimatronicEyePart3.files.getValue("components/servo/pca9685.cpp"))
+        }
+    }
+
+    private fun updateUnmodifiedAnimatronicFiles() {
+        updateUnmodifiedPca9685()
+        val dir = File(projectsRoot, "animatronic-eye")
+        val normalize: (String) -> String = { it.replace("\r\n", "\n").trimEnd('\n') }
+        val updates = listOf(
+            Triple("main/main.cpp", AnimatronicEyePart1.previousMain, AnimatronicEyePart1.files.getValue("main/main.cpp")),
+            Triple("components/eye_control/eye_control.cpp", AnimatronicEyePart2.previousEyeControl, AnimatronicEyePart2.files.getValue("components/eye_control/eye_control.cpp"))
+        )
+        for ((path, old, replacement) in updates) {
+            val file = File(dir, path)
+            if (file.isFile && normalize(file.readText()) == normalize(old)) file.writeText(replacement)
         }
     }
 
