@@ -19,11 +19,12 @@ class ProjectManager(private val context: Context) {
     fun projectIds(): List<String> {
         ensureExampleProject()
         return projectsRoot.listFiles()?.filter { it.isDirectory && File(it, ".esp32-flashing-app.json").isFile }
-            ?.map { it.name }?.sorted() ?: emptyList()
+            ?.map { it.name }?.plus("animatronic-eye")?.distinct()?.sorted() ?: listOf("animatronic-eye")
     }
 
     fun selectProject(id: String) {
         require(id.matches(Regex("[a-zA-Z0-9_-]+"))) { "Invalid project identifier" }
+        if (id == "animatronic-eye") ensureAnimatronicEyeProject()
         require(File(projectsRoot, "$id/.esp32-flashing-app.json").isFile) { "Project not found: $id" }
         prefs.edit().putString("selected", id).apply()
     }
@@ -57,7 +58,6 @@ class ProjectManager(private val context: Context) {
             "esp32s3", "driver", "", "")
         ensureBuiltIn("bme280", "BME280 Sensor", Bme280Firmware.mainC,
             "esp32s3", "driver", "", "")
-        ensureAnimatronicEyeProject()
         return root
     }
 
