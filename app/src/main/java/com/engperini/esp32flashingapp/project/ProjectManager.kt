@@ -11,7 +11,7 @@ class ProjectManager(private val context: Context) {
     private var pinnedProject: String? = null
     private val root: File get() = File(projectsRoot, pinnedProject ?: selectedProjectId())
     private val configFile: File get() = File(root, ".esp32-flashing-app.json")
-    val mainFile: File get() = File(root, "main/main.c")
+    val mainFile: File get() = File(root, "main/main.cpp").takeIf { it.isFile } ?: File(root, "main/main.c")
     val projectDir: File get() = root
 
     fun selectedProjectId(): String = pinnedProject ?: prefs.getString("selected", "example") ?: "example"
@@ -57,7 +57,25 @@ class ProjectManager(private val context: Context) {
             "esp32s3", "driver", "", "")
         ensureBuiltIn("bme280", "BME280 Sensor", Bme280Firmware.mainC,
             "esp32s3", "driver", "", "")
+        ensureAnimatronicEyeProject()
         return root
+    }
+
+    /** Create complete ESP-IDF C++ project once; never overwrite local edits. */
+    private fun ensureAnimatronicEyeProject() {
+        val dir = File(projectsRoot, "animatronic-eye")
+        if (dir.exists()) return
+        require(dir.mkdirs()) { "Cannot create Animatronic Eye project" }
+        val allFiles = AnimatronicEyePart1.files + AnimatronicEyePart2.files +
+            AnimatronicEyePart3.files + AnimatronicEyePart4.files
+        allFiles.forEach { (path, content) ->
+            val dest = File(dir, path)
+            dest.parentFile?.mkdirs()
+            dest.writeText(content)
+        }
+        File(dir, ".esp32-flashing-app.json").writeText(
+            JSONObject().put("name", "Animatronic Eye (PCA9685)").put("target", "esp32s3").toString(2)
+        )
     }
 
     private fun ensureTemplate(id: String, name: String, main: String, target: String, servo: Boolean) {
