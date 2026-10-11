@@ -19,6 +19,8 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
         private const val FLASH_WRITE_SIZE = 0x400
         private const val ESP32_FLASH_SIZE_BYTES = 4 * 1024 * 1024
         private const val ESP32S3_FLASH_SIZE_BYTES = 8 * 1024 * 1024
+        private const val LARGE_IMAGE_THRESHOLD = 1024 * 1024
+        private const val ROM_ERASE_WINDOW = 64 * 1024
         private const val CHECKSUM_MAGIC = 0xEF
         private const val SLIP_END = 0xC0
         private const val SLIP_ESC = 0xDB
@@ -116,21 +118,29 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
         images.forEachIndexed { index, (image, file) ->
             val data = file.readBytes()
             onProgress("Image " + (index + 1) + "/" + images.size + ": 0x" + image.address.toString(16) + " • " + data.size + " bytes")
-            // Match esptool ROM mode: one FLASH_BEGIN per image, sequential
-            // FLASH_DATA packets, followed by full-image MD5 verification.
-            // The ROM performs the erase requested by FLASH_BEGIN itself.
-            val blocks = (data.size + FLASH_WRITE_SIZE - 1) / FLASH_WRITE_SIZE
-            val flashBegin = le32(data.size) + le32(blocks) + le32(FLASH_WRITE_SIZE) +
-                le32(image.address) + if (esp32Rom) byteArrayOf() else le32(0)
-            command(ESP_FLASH_BEGIN, flashBegin, eraseTimeout(data.size))
-            for (seq in 0 until blocks) {
-                val from = seq * FLASH_WRITE_SIZE
-                val count = min(FLASH_WRITE_SIZE, data.size - from)
-                val block = ByteArray(FLASH_WRITE_SIZE) { 0xFF.toByte() }
-                data.copyInto(block, 0, from, from + count)
-                command(ESP_FLASH_DATA, le32(block.size) + le32(seq) + le32(0) + le32(0) + block, 5000, checksum(block))
-                written += count
-                if (seq == blocks - 1 || seq % 16 == 0) onProgress("Writing flash… " + (written * 100 / total) + "%")
+            // Preserve the proven single-session path for small firmware images.
+            // ESP32-S3 ROM may reject a multi-megabyte FLASH_BEGIN erase request.
+            // Large images use 64 KiB sector-aligned erase/write windows.
+            val chunkSize = if (!esp32Rom && data.size > LARGE_IMAGE_THRESHOLD) ROM_ERASE_WINDOW else data.size
+            var offset = 0
+            while (offset < data.size) {
+                val size = min(chunkSize, data.size - offset)
+                val blocks = (size + FLASH_WRITE_SIZE - 1) / FLASH_WRITE_SIZE
+                val flashBegin = le32(size) + le32(blocks) + le32(FLASH_WRITE_SIZE) +
+                    le32(image.address + offset) + if (esp32Rom) byteArrayOf() else le32(0)
+                onProgress("Erasing at 0x" + (image.address + offset).toString(16) +
+                    " • " + size + " bytes")
+                command(ESP_FLASH_BEGIN, flashBegin, eraseTimeout(size))
+                for (seq in 0 until blocks) {
+                    val from = offset + seq * FLASH_WRITE_SIZE
+                    val count = min(FLASH_WRITE_SIZE, data.size - from)
+                    val block = ByteArray(FLASH_WRITE_SIZE) { 0xFF.toByte() }
+                    data.copyInto(block, 0, from, from + count)
+                    command(ESP_FLASH_DATA, le32(block.size) + le32(seq) + le32(0) + le32(0) + block, 5000, checksum(block))
+                    written += count
+                    if (seq == blocks - 1 || seq % 16 == 0) onProgress("Writing flash… " + (written * 100 / total) + "%")
+                }
+                offset += size
             }
             val expected = MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
             val response = command(ESP_SPI_FLASH_MD5, le32(image.address) + le32(data.size) + le32(0) + le32(0), 12000)
