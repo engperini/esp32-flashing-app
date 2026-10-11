@@ -48,6 +48,7 @@ class ProjectManager(private val context: Context) {
     }
 
     fun ensureExampleProject(): File {
+        if (selectedProjectId() == "animatronic-eye") updateUnmodifiedPca9685()
         File(root, "main").mkdirs()
         createIfMissing(File(root, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.16)\ninclude(\u0024ENV{IDF_PATH}/tools/cmake/project.cmake)\nproject(esp32_flashing_app_example)\n")
         createIfMissing(File(root, "main/CMakeLists.txt"), "idf_component_register(SRCS \"main.c\" PRIV_REQUIRES spi_flash INCLUDE_DIRS \".\")\n")
@@ -100,7 +101,9 @@ class ProjectManager(private val context: Context) {
         val file = File(projectsRoot, "animatronic-eye/components/servo/pca9685.cpp")
         if (!file.isFile) return
         val current = file.readText()
-        if (current == AnimatronicEyePart3.previousPca9685) {
+        // Accept line-ending differences from project import, but never replace edited code.
+        val normalize: (String) -> String = { it.replace("\r\n", "\n").trimEnd('\n') }
+        if (normalize(current) == normalize(AnimatronicEyePart3.previousPca9685)) {
             file.writeText(AnimatronicEyePart3.files.getValue("components/servo/pca9685.cpp"))
         }
     }
