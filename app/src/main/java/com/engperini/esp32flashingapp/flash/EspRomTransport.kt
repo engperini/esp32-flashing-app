@@ -17,7 +17,9 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
         private const val ESP_SPI_ATTACH = 0x0D
         private const val ESP_SPI_FLASH_MD5 = 0x13
         private const val FLASH_WRITE_SIZE = 0x400
-        private const val FLASH_SIZE_BYTES = 2 * 1024 * 1024
+        private const val ESP32_FLASH_SIZE_BYTES = 4 * 1024 * 1024
+        private const val ESP32S3_FLASH_SIZE_BYTES = 8 * 1024 * 1024
+        private const val FLASH_ERASE_CHUNK_BYTES = 256 * 1024
         private const val CHECKSUM_MAGIC = 0xEF
         private const val SLIP_END = 0xC0
         private const val SLIP_ESC = 0xDB
@@ -96,24 +98,45 @@ class EspRomTransport(private val device: UsbDeviceEngine) {
     }
 
     private suspend fun flashInternal(plan: FlashPlan, onProgress: (String) -> Unit, esp32Rom: Boolean) {
+        val flashCapacity = if (esp32Rom) ESP32_FLASH_SIZE_BYTES else ESP32S3_FLASH_SIZE_BYTES
+        // XIAO ESP32-S3 Sense has 8 MB flash. Classic ESP32-CAM has 4 MB.
+        // Do not advertise 2 MB to the ROM when the image itself exceeds 2 MB.
+        val images = plan.images.map { image ->
+            val file = File(image.path)
+            require(file.isFile) { "Flash image missing: ${image.path}" }
+            val size = file.length()
+            require(image.address >= 0 && size > 0 && image.address.toLong() + size <= flashCapacity.toLong()) {
+                "Image at 0x${image.address.toString(16)} (${size} bytes) exceeds configured ${flashCapacity / (1024 * 1024)} MB flash"
+            }
+            image to file
+        }
         command(ESP_SPI_ATTACH, le32(0) + byteArrayOf(0, 0, 0, 0), 3000)
-        command(ESP_SPI_SET_PARAMS, le32(0) + le32(FLASH_SIZE_BYTES) + le32(64 * 1024) + le32(4 * 1024) + le32(256) + le32(0xFFFF), 3000)
-        val total = plan.images.sumOf { File(it.path).length() }
+        command(ESP_SPI_SET_PARAMS, le32(0) + le32(flashCapacity) + le32(64 * 1024) + le32(4 * 1024) + le32(256) + le32(0xFFFF), 3000)
+        val total = images.sumOf { it.second.length() }
         var written = 0L
-        plan.images.forEachIndexed { index, image ->
-            val data = File(image.path).readBytes()
-            val blocks = (data.size + FLASH_WRITE_SIZE - 1) / FLASH_WRITE_SIZE
-            onProgress("Image " + (index + 1) + "/" + plan.images.size + ": 0x" + image.address.toString(16) + " • " + data.size + " bytes")
-            val flashBegin = le32(data.size) + le32(blocks) + le32(FLASH_WRITE_SIZE) + le32(image.address) + if (esp32Rom) byteArrayOf() else le32(0)
-            command(ESP_FLASH_BEGIN, flashBegin, eraseTimeout(data.size))
-            for (seq in 0 until blocks) {
-                val from = seq * FLASH_WRITE_SIZE
-                val count = min(FLASH_WRITE_SIZE, data.size - from)
-                val block = ByteArray(FLASH_WRITE_SIZE) { 0xFF.toByte() }
-                data.copyInto(block, 0, from, from + count)
-                command(ESP_FLASH_DATA, le32(block.size) + le32(seq) + le32(0) + le32(0) + block, 5000, checksum(block))
-                written += count
-                if (seq == blocks - 1 || seq % 16 == 0) onProgress("Writing flash… " + (written * 100 / total) + "%")
+        images.forEachIndexed { index, (image, file) ->
+            val data = file.readBytes()
+            onProgress("Image " + (index + 1) + "/" + images.size + ": 0x" + image.address.toString(16) + " • " + data.size + " bytes")
+            // ROM FLASH_BEGIN can reject an excessively large erase request.
+            // Use bounded erase/write sessions, restarting block sequence for each chunk.
+            var imageOffset = 0
+            while (imageOffset < data.size) {
+                val chunkSize = min(FLASH_ERASE_CHUNK_BYTES, data.size - imageOffset)
+                val blocks = (chunkSize + FLASH_WRITE_SIZE - 1) / FLASH_WRITE_SIZE
+                val address = image.address + imageOffset
+                val flashBegin = le32(chunkSize) + le32(blocks) + le32(FLASH_WRITE_SIZE) + le32(address) +
+                    if (esp32Rom) byteArrayOf() else le32(0)
+                command(ESP_FLASH_BEGIN, flashBegin, eraseTimeout(chunkSize))
+                for (seq in 0 until blocks) {
+                    val from = imageOffset + seq * FLASH_WRITE_SIZE
+                    val count = min(FLASH_WRITE_SIZE, data.size - from)
+                    val block = ByteArray(FLASH_WRITE_SIZE) { 0xFF.toByte() }
+                    data.copyInto(block, 0, from, from + count)
+                    command(ESP_FLASH_DATA, le32(block.size) + le32(seq) + le32(0) + le32(0) + block, 5000, checksum(block))
+                    written += count
+                    if (seq == blocks - 1 || seq % 16 == 0) onProgress("Writing flash… " + (written * 100 / total) + "%")
+                }
+                imageOffset += chunkSize
             }
             val expected = MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
             val response = command(ESP_SPI_FLASH_MD5, le32(image.address) + le32(data.size) + le32(0) + le32(0), 12000)
