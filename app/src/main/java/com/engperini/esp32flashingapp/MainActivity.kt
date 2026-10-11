@@ -50,8 +50,18 @@ device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationCo
    var projectIds by remember{mutableStateOf(projects.projectIds())}
    var selectedProjectId by remember{mutableStateOf(projects.selectedProjectId())}
    var files by remember{mutableStateOf(projects.listFiles().map(projects::relativePath))}
-   var selectedFile by remember{mutableStateOf("main/main.c")}
-   var editorText by remember{mutableStateOf(projects.read(selectedFile))}
+   var selectedFile by remember{mutableStateOf(
+    projects.listFiles().map(projects::relativePath).let { paths ->
+     when {
+      "main/main.cpp" in paths -> "main/main.cpp"
+      "main/main.c" in paths -> "main/main.c"
+      else -> paths.firstOrNull().orEmpty()
+     }
+    }
+   )}
+   var editorText by remember{mutableStateOf(
+    if (selectedFile.isBlank()) "" else runCatching { projects.read(selectedFile) }.getOrDefault("")
+   )}
    var saveFeedback by remember{mutableStateOf("")}
    OperationDialogs(setup,build,flash,onCancelBuild={IdfOperationService.cancelBuild(applicationContext)})
    MainShell(state,project,projectIds,selectedProjectId,
@@ -61,7 +71,11 @@ device=UsbDeviceEngine(applicationContext);projects=ProjectManager(applicationCo
       selectedProjectId=id
       project=projects.config()
       files=projects.listFiles().map(projects::relativePath)
-      selectedFile=if("main/main.c" in files) "main/main.c" else files.firstOrNull().orEmpty()
+      selectedFile=when {
+       "main/main.cpp" in files -> "main/main.cpp"
+       "main/main.c" in files -> "main/main.c"
+       else -> files.firstOrNull().orEmpty()
+      }
       editorText=if(selectedFile.isBlank()) "" else projects.read(selectedFile)
       saveFeedback=""
       AppState.operation(OperationState.IDLE,"Selected project: "+project.name)
