@@ -16,21 +16,24 @@ class ProjectManager(private val context: Context) {
 
     fun selectedProjectId(): String = pinnedProject ?: prefs.getString("selected", "example") ?: "example"
 
-    private val bundledProjects: Map<String, Pair<String, Map<String, String>>> by lazy {
-        mapOf("animatronic-eye" to ("Animatronic Eye (PCA9685)" to (
+    private val bundledProjectIds = setOf("animatronic-eye")
+
+    private fun bundledProjectFiles(id: String): Pair<String, Map<String, String>> = when (id) {
+        "animatronic-eye" -> "Animatronic Eye (PCA9685)" to (
             AnimatronicEyePart1.files + AnimatronicEyePart2.files +
-            AnimatronicEyePart3.files + AnimatronicEyePart4.files)))
+            AnimatronicEyePart3.files + AnimatronicEyePart4.files)
+        else -> error("Unknown bundled project: $id")
     }
 
     fun projectIds(): List<String> {
         ensureExampleProject()
         return projectsRoot.listFiles()?.filter { it.isDirectory && File(it, ".esp32-flashing-app.json").isFile }
-            ?.map { it.name }?.plus(bundledProjects.keys)?.distinct()?.sorted() ?: bundledProjects.keys.sorted()
+            ?.map { it.name }?.plus(bundledProjectIds)?.distinct()?.sorted() ?: bundledProjectIds.sorted()
     }
 
     fun selectProject(id: String) {
         require(id.matches(Regex("[a-zA-Z0-9_-]+"))) { "Invalid project identifier" }
-        if (id in bundledProjects) ensureBundledProject(id)
+        if (id in bundledProjectIds) ensureBundledProject(id)
         require(File(projectsRoot, "$id/.esp32-flashing-app.json").isFile) { "Project not found: $id" }
         prefs.edit().putString("selected", id).apply()
     }
@@ -72,7 +75,7 @@ class ProjectManager(private val context: Context) {
      * Metadata is written last so incomplete projects cannot appear as ready.
      */
     private fun ensureBundledProject(id: String) {
-        val (name, sourceFiles) = bundledProjects[id] ?: error("Unknown bundled project: $id")
+        val (name, sourceFiles) = bundledProjectFiles(id)
         val dir = File(projectsRoot, id)
         if (!dir.exists()) require(dir.mkdirs()) { "Cannot create project: $id" }
         for ((path, content) in sourceFiles) {
