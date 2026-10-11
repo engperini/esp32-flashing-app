@@ -16,15 +16,21 @@ class ProjectManager(private val context: Context) {
 
     fun selectedProjectId(): String = pinnedProject ?: prefs.getString("selected", "example") ?: "example"
 
+    private val bundledProjects: Map<String, Pair<String, Map<String, String>>> by lazy {
+        mapOf("animatronic-eye" to ("Animatronic Eye (PCA9685)" to (
+            AnimatronicEyePart1.files + AnimatronicEyePart2.files +
+            AnimatronicEyePart3.files + AnimatronicEyePart4.files)))
+    }
+
     fun projectIds(): List<String> {
         ensureExampleProject()
         return projectsRoot.listFiles()?.filter { it.isDirectory && File(it, ".esp32-flashing-app.json").isFile }
-            ?.map { it.name }?.plus("animatronic-eye")?.distinct()?.sorted() ?: listOf("animatronic-eye")
+            ?.map { it.name }?.plus(bundledProjects.keys)?.distinct()?.sorted() ?: bundledProjects.keys.sorted()
     }
 
     fun selectProject(id: String) {
         require(id.matches(Regex("[a-zA-Z0-9_-]+"))) { "Invalid project identifier" }
-        if (id == "animatronic-eye") ensureAnimatronicEyeProject()
+        if (id in bundledProjects) ensureBundledProject(id)
         require(File(projectsRoot, "$id/.esp32-flashing-app.json").isFile) { "Project not found: $id" }
         prefs.edit().putString("selected", id).apply()
     }
@@ -61,20 +67,25 @@ class ProjectManager(private val context: Context) {
         return root
     }
 
-    /** Create complete ESP-IDF C++ project once; never overwrite local edits. */
-    private fun ensureAnimatronicEyeProject() {
-        val dir = File(projectsRoot, "animatronic-eye")
-        if (dir.exists()) return
-        require(dir.mkdirs()) { "Cannot create Animatronic Eye project" }
-        val allFiles = AnimatronicEyePart1.files + AnimatronicEyePart2.files +
-            AnimatronicEyePart3.files + AnimatronicEyePart4.files
-        allFiles.forEach { (path, content) ->
+    /** All complete bundled projects use the same file-based installer.
+     * Existing files are never overwritten. An interrupted installation is recoverable.
+     * Metadata is written last so incomplete projects cannot appear as ready.
+     */
+    private fun ensureBundledProject(id: String) {
+        val (name, sourceFiles) = bundledProjects[id] ?: error("Unknown bundled project: $id")
+        val dir = File(projectsRoot, id)
+        if (!dir.exists()) require(dir.mkdirs()) { "Cannot create project: $id" }
+        for ((path, content) in sourceFiles) {
             val dest = File(dir, path)
-            dest.parentFile?.mkdirs()
+            if (dest.exists()) continue
+            require(dest.parentFile?.mkdirs() != false || dest.parentFile?.isDirectory == true) {
+                "Cannot create directory for $path"
+            }
             dest.writeText(content)
         }
-        File(dir, ".esp32-flashing-app.json").writeText(
-            JSONObject().put("name", "Animatronic Eye (PCA9685)").put("target", "esp32s3").toString(2)
+        val metadata = File(dir, ".esp32-flashing-app.json")
+        if (!metadata.exists()) metadata.writeText(
+            JSONObject().put("name", name).put("target", "esp32s3").toString(2)
         )
     }
 
@@ -218,7 +229,7 @@ class ProjectManager(private val context: Context) {
     fun createFile(relativePath: String) { val f=safeFile(relativePath); f.parentFile?.mkdirs(); require(!f.exists()){"File already exists"}; f.writeText("") }
     fun createDirectory(relativePath: String) { val f=safeFile(relativePath); require(!f.exists()){"Directory already exists"}; require(f.mkdirs()){"Unable to create directory"} }
     fun loadMain(): String { ensureExampleProject(); return mainFile.readText() }
-    fun saveMain(text: String) { save("main/main.c", text) }
+    fun saveMain(text: String) { save(relativePath(mainFile), text) }
 
     private fun createIfMissing(file: File, content: String) { if (!file.exists()) { file.parentFile?.mkdirs(); file.writeText(content) } }
     private fun saveConfig(config: ProjectConfig) {
