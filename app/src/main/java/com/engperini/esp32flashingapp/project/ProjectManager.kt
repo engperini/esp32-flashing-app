@@ -114,7 +114,12 @@ class ProjectManager(private val context: Context) {
         val normalize: (String) -> String = { it.replace("\r\n", "\n").trimEnd('\n') }
         val updates = listOf(
             Triple("main/main.cpp", AnimatronicEyePart1.previousMain, AnimatronicEyePart1.files.getValue("main/main.cpp")),
-            Triple("components/eye_control/eye_control.cpp", AnimatronicEyePart2.previousEyeControl, AnimatronicEyePart2.files.getValue("components/eye_control/eye_control.cpp"))
+            Triple("components/eye_control/eye_control.cpp", AnimatronicEyePart2.previousEyeControl, AnimatronicEyePart2.files.getValue("components/eye_control/eye_control.cpp")),
+            Triple("components/core/include/core.hpp", AnimatronicEyePart2.previousCore, AnimatronicEyePart2.files.getValue("components/core/include/core.hpp")),
+            Triple("components/camera/camera.cpp", AnimatronicEyePart2.previousCamera, AnimatronicEyePart2.files.getValue("components/camera/camera.cpp")),
+            Triple("components/tracking/tracking.cpp", AnimatronicEyePart3.previousTracking, AnimatronicEyePart3.files.getValue("components/tracking/tracking.cpp")),
+            Triple("components/web/web.cpp", AnimatronicEyePart4.previousWeb, AnimatronicEyePart4.files.getValue("components/web/web.cpp")),
+            Triple("components/web/index.html", AnimatronicEyePart4.previousHtml, AnimatronicEyePart4.files.getValue("components/web/index.html"))
         )
         for ((path, old, replacement) in updates) {
             val file = File(dir, path)
